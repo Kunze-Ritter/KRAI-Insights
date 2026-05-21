@@ -1,0 +1,42 @@
+# --- Secrets & local config (never commit) ---
+.env
+.env.*
+!.env.example
+config/customer_mapping.yaml
+config/warranty_rules.yaml
+config/*.local.yaml
+
+# --- Radix token cache ---
+.cache/
+*.token.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Data / dumps / exports ---
+data/
+exports/
+*.sqlite
+*.dump
+*.bak
+pg_dumps/
+
+# --- Streamlit ---
+.streamlit/secrets.toml
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

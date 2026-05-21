@@ -1,0 +1,25 @@
+# krai-insights runtime dependencies (Python 3.12)
+# Pinned to compatible major ranges; lock exact versions in deploy if needed.
+
+# --- Web / dashboards ---
+streamlit>=1.40,<2.0
+plotly>=5.24,<6.0
+pandas>=2.2,<3.0
+
+# --- Config / models ---
+pydantic>=2.9,<3.0
+pydantic-settings>=2.6,<3.0
+python-dotenv>=1.0,<2.0
+PyYAML>=6.0,<7.0
+
+# --- Databases ---
+SQLAlchemy>=2.0,<3.0
+psycopg[binary]>=3.2,<4.0      # KRAI PG (read) + Insights PG (read/write)
+pyodbc>=5.1,<6.0               # FleetMgmt MSSQL (read-only)
+
+# --- HTTP clients ---
+aiohttp>=3.10,<4.0             # Radix client (ported from KRAI)
+httpx>=0.27,<1.0              # Ollama / sync helpers
+
+# --- Scheduling (nightly ETL + snapshots) ---
+APScheduler>=3.10,<4.0

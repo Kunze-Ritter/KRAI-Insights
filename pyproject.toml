@@ -1,0 +1,27 @@
+[project]
+name = "krai-insights"
+version = "0.1.0"
+description = "Profitability & warranty analytics fusing FleetMgmt (MSSQL), KRAI (PostgreSQL) and Radix (REST) with a local Ollama agent."
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["insights", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
+ignore = ["B008"]  # FastAPI/Depends-style default-arg calls
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+testpaths = ["tests"]

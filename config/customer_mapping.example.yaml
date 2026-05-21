@@ -1,0 +1,18 @@
+# Customer mapping — copy to config/customer_mapping.yaml (gitignored) and fill.
+#
+# Maps the many spellings found across FleetMgmt / Radix / KRAI to one canonical
+# customer name, to lift device-match quality. Top-15 is enough to start; grow to
+# Top-50 later (plan §9).
+#
+# Format:
+#   - canonical: "<the one true name>"
+#     aliases: ["<spelling in FleetMgmt>", "<spelling in Radix>", ...]
+
+customers:
+  - canonical: "Example Kunde GmbH"
+    aliases:
+      - "Example Kunde G.m.b.H."
+      - "Example Kunde"
+      - "EXAMPLE KUNDE GMBH"
+  # - canonical: "..."   # add the remaining top-15 here
+  #   aliases: ["...", "..."]

@@ -1,0 +1,10 @@
+-r requirements.txt
+
+# --- Tooling ---
+ruff>=0.7,<1.0
+mypy>=1.13,<2.0
+pytest>=8.3,<9.0
+pytest-asyncio>=0.24,<1.0
+
+# --- Type stubs ---
+types-PyYAML

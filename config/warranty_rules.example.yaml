@@ -1,0 +1,18 @@
+# Warranty rules — copy to config/warranty_rules.yaml (gitignored) and adjust.
+#
+# Confirmed standard: 365 days flat for all parts/manufacturers.
+# Special cases (e.g. print heads with longer warranty) go under `overrides`
+# later — leave empty for now.
+
+default_days: 365
+
+# Per-manufacturer overrides. Empty until special cases are confirmed.
+# Example shape (commented out):
+# overrides:
+#   "Konica Minolta":
+#     default_days: 365
+#     parts:
+#       printhead: 1825   # 5 years
+#   "HP":
+#     default_days: 365
+overrides: {}

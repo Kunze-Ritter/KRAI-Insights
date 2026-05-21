@@ -1,0 +1,62 @@
+# krai-insights — standalone stack.
+# Source systems (FleetMgmt MSSQL, KRAI PostgreSQL) are EXTERNAL and read-only;
+# they are not part of this compose file. Reach them via host.docker.internal.
+#
+#   docker compose up -d insights-postgres app      # core stack
+#   docker compose run --rm app python scripts/migrate.py
+#   docker compose --profile agent up -d ollama      # optional local LLM
+name: krai-insights
+
+services:
+  insights-postgres:
+    image: postgres:16
+    container_name: krai-insights-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${INSIGHTS_DB_NAME:-krai_insights}
+      POSTGRES_USER: ${INSIGHTS_DB_USER:-insights}
+      POSTGRES_PASSWORD: ${INSIGHTS_DB_PASSWORD:?set INSIGHTS_DB_PASSWORD in .env}
+    ports:
+      - "${INSIGHTS_DB_PORT:-5433}:5432"
+    volumes:
+      - insights_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INSIGHTS_DB_USER:-insights} -d ${INSIGHTS_DB_NAME:-krai_insights}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: krai-insights-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Inside the network the DB is reachable as the service name on 5432.
+      INSIGHTS_DB_HOST: insights-postgres
+      INSIGHTS_DB_PORT: 5432
+    ports:
+      - "8501:8501"
+    depends_on:
+      insights-postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach host-based source DBs
+    volumes:
+      - ./:/app    # live code mount for dev; drop in prod image builds
+
+  # Optional — local LLM for the KI-Agent (Phase 5). Enable with:
+  #   docker compose --profile agent up -d ollama
+  ollama:
+    image: ollama/ollama:latest
+    container_name: krai-insights-ollama
+    restart: unless-stopped
+    profiles: ["agent"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+
+volumes:
+  insights_pgdata:
+  ollama_models:
