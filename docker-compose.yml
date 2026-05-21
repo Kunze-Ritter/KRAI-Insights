@@ -1,8 +1,12 @@
 # krai-insights — standalone stack.
-# The FleetMgmt MSSQL source now lives here too (moved out of KRAI-minimal on
-# 2026-05-21). Its data is the EXTERNAL volume `krai-minimal_fleetmgmt_data`
-# (zero-copy move) — see the volumes section. The KRAI PostgreSQL source stays
-# external; reach it via host.docker.internal.
+# The FleetMgmt MSSQL source lives here (moved out of KRAI-minimal on
+# 2026-05-21). Its data is the krai-insights-owned volume `fleetmgmt_data`,
+# restored from a .bak (see docs/fleetmgmt_restore_*).
+#
+# `app` and `fleetmgmt-mssql` also join the KRAI stack's network
+# (`krai-minimal_krai-network`, aliased `krai-shared`) so both stacks talk by
+# container name: the app reaches krai-postgres-prod (krai_pm) and
+# krai-ollama-prod, and KRAI reaches FleetMgmt as `fleetmgmt-mssql` again.
 #
 #   docker compose up -d insights-postgres app          # core stack
 #   docker compose up -d fleetmgmt-mssql                # FleetMgmt source
@@ -50,6 +54,9 @@ services:
       - "host.docker.internal:host-gateway"   # reach host-based source DBs
     volumes:
       - ./:/app    # live code mount for dev; drop in prod image builds
+    networks:
+      - default        # krai-insights internal (insights-postgres, fleetmgmt)
+      - krai-shared    # reach krai-postgres-prod (krai_pm) + krai-ollama-prod
 
   # FleetMgmt MSSQL — read-only analysis source (DevFleetMgmt, 62M rows).
   # Moved from KRAI-minimal/docker-compose.fleetmgmt.yml. Data persists in the
@@ -68,6 +75,10 @@ services:
       - "1433:1433"
     volumes:
       - fleetmgmt_data:/var/opt/mssql
+      # Restore/import sources (read-only). Defaults are local; point
+      # FLEETMGMT_BACKUP_DIR / FLEETMGMT_IMPORT_DIR at the real sources in .env.
+      - ${FLEETMGMT_BACKUP_DIR:-./database/fleetmgmt/backups}:/backups:ro
+      - ${FLEETMGMT_IMPORT_DIR:-./database/fleetmgmt/import}:/import:ro
       - ./database/fleetmgmt/scripts:/scripts:ro
       - ./database/fleetmgmt/logs:/logs
     healthcheck:
@@ -80,6 +91,9 @@ services:
       start_period: 60s
     mem_limit: 6g
     cpus: 4.0
+    networks:
+      - default        # same internal net as the app
+      - krai-shared    # let KRAI services reach FleetMgmt by name again
 
   # Optional — local LLM for the KI-Agent (Phase 5). Enable with:
   #   docker compose --profile agent up -d ollama
@@ -93,12 +107,18 @@ services:
     volumes:
       - ollama_models:/root/.ollama
 
+networks:
+  # Shared with the KRAI stack so both can talk by container name
+  # (krai-postgres-prod / krai-ollama-prod <-> krai-insights app / fleetmgmt-mssql).
+  krai-shared:
+    external: true
+    name: krai-minimal_krai-network
+
 volumes:
   insights_pgdata:
   ollama_models:
-  # Existing FleetMgmt data — referenced as external (zero-copy move from
-  # KRAI-minimal). NOT managed/created by this project, so `down -v` here will
-  # not delete it; only an explicit `docker volume rm` would.
+  # FleetMgmt data — krai-insights-owned named volume. The old external
+  # krai-minimal_fleetmgmt_data was deleted during the transfer; the DB is
+  # restored into this fresh volume from the .bak (see docs/fleetmgmt_restore_*).
+  # DANGER: `docker compose down -v` would delete this AND insights_pgdata.
   fleetmgmt_data:
-    external: true
-    name: krai-minimal_fleetmgmt_data

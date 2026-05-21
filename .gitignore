@@ -32,9 +32,13 @@ exports/
 *.bak
 pg_dumps/
 
-# --- FleetMgmt MSSQL runtime logs (keep the dir, not the contents) ---
+# --- FleetMgmt MSSQL runtime logs + restore sources (keep dirs, not contents) ---
 database/fleetmgmt/logs/*
 !database/fleetmgmt/logs/.gitkeep
+database/fleetmgmt/backups/*
+!database/fleetmgmt/backups/.gitkeep
+database/fleetmgmt/import/*
+!database/fleetmgmt/import/.gitkeep
 
 # --- Streamlit ---
 .streamlit/secrets.toml

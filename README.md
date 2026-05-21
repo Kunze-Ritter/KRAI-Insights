@@ -1,4 +1,4 @@
-# krai-insights
+# KRAI Insights
 
 Standalone profitability & warranty analytics. Fuses three sources —
 **FleetMgmt** (MSSQL), **KRAI** `krai_pm` (PostgreSQL) and **Radix** RxPlusService
@@ -45,12 +45,16 @@ docker compose run --rm app python scripts/migrate.py
 docker compose --profile agent up -d ollama
 ```
 
-**FleetMgmt MSSQL** runs as the `fleetmgmt-mssql` service in this compose. Its data
-is the **external** Docker volume `krai-minimal_fleetmgmt_data` (zero-copy move from
-the former KRAI-minimal project), so a normal `docker compose down` keeps it intact —
-**never** `down -v` while it is up. The app connects with the read-only login
-`krai_readonly`. The **KRAI PostgreSQL** source stays external; reach it via
-`host.docker.internal`.
+**FleetMgmt MSSQL** runs as the `fleetmgmt-mssql` service in this compose, with data
+in the krai-insights-owned volume `fleetmgmt_data` (restored from a `.bak` — see
+`docs/fleetmgmt_restore_verification_*`). **Never** `docker compose down -v` while it is
+up — that deletes `fleetmgmt_data` *and* `insights_pgdata`. The app connects with the
+read-only login `krai_readonly`.
+
+**Shared network:** `app` and `fleetmgmt-mssql` also join the KRAI stack's network
+(`krai-minimal_krai-network`), so the app reaches **KRAI PostgreSQL** (`krai-postgres-prod`,
+`krai_pm`) and the shared **Ollama** (`krai-ollama-prod`) by container name, and KRAI can
+reach FleetMgmt again as `fleetmgmt-mssql`.
 
 ## Inputs needed from Tobias
 
