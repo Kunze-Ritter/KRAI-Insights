@@ -39,6 +39,9 @@ database/fleetmgmt/backups/*
 !database/fleetmgmt/backups/.gitkeep
 database/fleetmgmt/import/*
 !database/fleetmgmt/import/.gitkeep
+# SQL data extracts pulled from the transfer (missing_data, schema dumps, samples)
+database/fleetmgmt/data/*
+!database/fleetmgmt/data/.gitkeep
 
 # --- Streamlit ---
 .streamlit/secrets.toml
