@@ -7,15 +7,17 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 # --- System deps: MSSQL ODBC driver (pyodbc) + build essentials -------------
+# Microsoft's prod.list references signed-by=/usr/share/keyrings/microsoft-prod.gpg,
+# so the key must be dearmored to exactly that path (an armored .asc in
+# trusted.gpg.d is NOT honored -> apt NO_PUBKEY error).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl gnupg ca-certificates unixodbc-dev \
     && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
-        | tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null \
+        | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
     && curl -fsSL https://packages.microsoft.com/config/debian/12/prod.list \
-        | tee /etc/apt/sources.list.d/mssql-release.list > /dev/null \
+        -o /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
     && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 \
-    && apt-get purge -y --auto-remove gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

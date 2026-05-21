@@ -1,10 +1,16 @@
 # krai-insights — standalone stack.
-# Source systems (FleetMgmt MSSQL, KRAI PostgreSQL) are EXTERNAL and read-only;
-# they are not part of this compose file. Reach them via host.docker.internal.
+# The FleetMgmt MSSQL source now lives here too (moved out of KRAI-minimal on
+# 2026-05-21). Its data is the EXTERNAL volume `krai-minimal_fleetmgmt_data`
+# (zero-copy move) — see the volumes section. The KRAI PostgreSQL source stays
+# external; reach it via host.docker.internal.
 #
-#   docker compose up -d insights-postgres app      # core stack
+#   docker compose up -d insights-postgres app          # core stack
+#   docker compose up -d fleetmgmt-mssql                # FleetMgmt source
 #   docker compose run --rm app python scripts/migrate.py
-#   docker compose --profile agent up -d ollama      # optional local LLM
+#   docker compose --profile agent up -d ollama          # optional local LLM
+#
+# WARNING: never `docker compose down -v` with fleetmgmt-mssql up — it would
+# delete the 62M-row FleetMgmt volume. Use plain `down` to stop.
 name: krai-insights
 
 services:
@@ -45,6 +51,36 @@ services:
     volumes:
       - ./:/app    # live code mount for dev; drop in prod image builds
 
+  # FleetMgmt MSSQL — read-only analysis source (DevFleetMgmt, 62M rows).
+  # Moved from KRAI-minimal/docker-compose.fleetmgmt.yml. Data persists in the
+  # external volume `krai-minimal_fleetmgmt_data` (declared below).
+  fleetmgmt-mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: krai-fleetmgmt-mssql
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+      MSSQL_AGENT_ENABLED: "false"
+      MSSQL_TCP_PORT: "1433"
+    ports:
+      - "1433:1433"
+    volumes:
+      - fleetmgmt_data:/var/opt/mssql
+      - ./database/fleetmgmt/scripts:/scripts:ro
+      - ./database/fleetmgmt/logs:/logs
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b -t 5 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    mem_limit: 6g
+    cpus: 4.0
+
   # Optional — local LLM for the KI-Agent (Phase 5). Enable with:
   #   docker compose --profile agent up -d ollama
   ollama:
@@ -60,3 +96,9 @@ services:
 volumes:
   insights_pgdata:
   ollama_models:
+  # Existing FleetMgmt data — referenced as external (zero-copy move from
+  # KRAI-minimal). NOT managed/created by this project, so `down -v` here will
+  # not delete it; only an explicit `docker volume rm` would.
+  fleetmgmt_data:
+    external: true
+    name: krai-minimal_fleetmgmt_data

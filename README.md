@@ -32,19 +32,25 @@ cp .env.example .env          # then fill in passwords + Radix credentials
 # 2. Start the core stack (Insights PostgreSQL + Streamlit app)
 docker compose up -d insights-postgres app
 
-# 3. Apply DB migrations
+# 3. Start the FleetMgmt MSSQL source (DevFleetMgmt, ~62M rows)
+docker compose up -d fleetmgmt-mssql
+
+# 4. Apply DB migrations
 docker compose run --rm app python scripts/migrate.py
 
-# 4. Open the dashboard
+# 5. Open the dashboard
 #    http://localhost:8501
 
 # Optional — local LLM for the agent (Phase 5)
 docker compose --profile agent up -d ollama
 ```
 
-The source DBs (FleetMgmt MSSQL, KRAI PostgreSQL) are **external** and not part of
-this compose file. When the app runs in Docker and a source runs on the host, set
-its host in `.env` to `host.docker.internal`.
+**FleetMgmt MSSQL** runs as the `fleetmgmt-mssql` service in this compose. Its data
+is the **external** Docker volume `krai-minimal_fleetmgmt_data` (zero-copy move from
+the former KRAI-minimal project), so a normal `docker compose down` keeps it intact —
+**never** `down -v` while it is up. The app connects with the read-only login
+`krai_readonly`. The **KRAI PostgreSQL** source stays external; reach it via
+`host.docker.internal`.
 
 ## Inputs needed from Tobias
 
