@@ -43,19 +43,26 @@ class RadixArticle(BaseModel):
 
 
 class RadixCustomer(_RadixModel):
-    """A Radix customer — company-level only (no contact persons / PII)."""
+    """A Radix customer — company + location only (no contact persons / PII).
+
+    The live payload also carries email/phone/fax/salutation/letterSalutation —
+    all PII. With `extra="ignore"` and this explicit field whitelist, those are
+    dropped on validation and never reach the Insights DB.
+    """
 
     id: str = Field(..., alias="id")
-    company_id: str | None = Field(None, alias="companyId")
     number: int | None = None
     description: str | None = None  # company name
-    optional: str | None = None
-    street: str | None = None  # location data (allowed)
-    zip: str | None = None
+    optional: str | None = None     # secondary name line (e.g. "Atelier für Gestaltung")
+    legalform: str | None = None    # legal form, if maintained (helps normalisation)
+    street: str | None = None       # location data (allowed)
+    streetnumber: str | None = None
+    zip: str | None = Field(None, alias="postalCode")
     town: str | None = None
-    isocode: str | None = None
+    country: str | None = None
+    address_id: str | None = Field(None, alias="addressId")
     inactive: bool | None = None
-    # PII intentionally omitted: salutation, letterSalutation, email, phone, contacts.
+    # PII intentionally omitted: salutation, letterSalutation, email, phone, fax, contacts.
 
 
 class RadixSerialNumber(_RadixModel):

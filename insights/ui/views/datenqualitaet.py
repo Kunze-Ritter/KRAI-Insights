@@ -22,6 +22,11 @@ EINBAU_LABEL = {
     "woanders_eingebaut": "Woanders eingebaut (Falschbuchung)",
     "kein_einbau_gefunden": "Kein Einbau gefunden",
 }
+ABGLEICH_LABEL = {
+    "abweichung": "Abweichung (prüfen)",
+    "teilweise": "Ähnlich (wahrscheinlich gleich)",
+    "uebereinstimmung": "Übereinstimmung",
+}
 EINORDNUNG_LABEL = {
     "aktiv_unter_vertrag": "Aktiv, unter Vertrag",
     "aktiv_ohne_vertrag": "Aktiv, ohne Vertrag",
@@ -47,7 +52,10 @@ def kennzahlen() -> dict:
         woanders = conn.execute(
             text("SELECT count(*) FROM insights.vw_material_install_check WHERE einbau_status = 'woanders_eingebaut'")
         ).scalar()
-    return {"risiko": risiko, "fake": fake, "woanders": woanders}
+        kunde_abw = conn.execute(
+            text("SELECT count(*) FROM insights.vw_customer_device_mismatch WHERE abgleich = 'abweichung'")
+        ).scalar()
+    return {"risiko": risiko, "fake": fake, "woanders": woanders, "kunde_abw": kunde_abw}
 
 
 st.title("🔍 Datenqualität & Abgleich")
@@ -57,14 +65,15 @@ st.caption(
 )
 
 k = kennzahlen()
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 c1.metric("Abrechnungs-Risiko (Geräte)", f"{k['risiko']:,}".replace(",", "."))
 c2.metric("Teilewechsel mit Fake-Verdacht", f"{k['fake']:,}".replace(",", "."))
 c3.metric("Toner woanders eingebaut", f"{k['woanders']:,}".replace(",", "."))
+c4.metric("Kunden-Abweichung (Geräte)", f"{k['kunde_abw']:,}".replace(",", "."))
 
 st.divider()
-tab_risk, tab_recon, tab_vbm, tab_einbau = st.tabs(
-    ["Abrechnungs-Risiko", "Flotten-Abgleich", "Teilewechsel-Validierung", "Material-Einbau"]
+tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
+    ["Abrechnungs-Risiko", "Flotten-Abgleich", "Teilewechsel-Validierung", "Material-Einbau", "Kunden-Abgleich"]
 )
 
 with tab_risk:
@@ -173,4 +182,35 @@ with tab_einbau:
             "description": "Material", "einbau_status": "Einbau-Status",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Lieferung(en) (max. 500)")
+    st.dataframe(df, width="stretch", hide_index=True)
+
+with tab_kunde:
+    st.markdown("**Kunden-Abgleich** — stimmt der Kunde/Standort eines Geräts in FleetMgmt und Radix überein?")
+    st.caption("Abweichungen entstehen durch weiterverkaufte Geräte, Umzüge oder falsche Zuordnung — und sind "
+               "eine häufige Ursache für Toner-Fehlversand und Falschabrechnung. Namen werden für den Vergleich "
+               "normalisiert (Rechtsform, Schreibweise), damit nur echte Abweichungen übrig bleiben.")
+    stufe = st.radio(
+        "Stufe", options=list(ABGLEICH_LABEL.keys()), index=0, horizontal=True,
+        format_func=lambda v: ABGLEICH_LABEL.get(v, v),
+    )
+    such = st.text_input("Filter — Kunde oder Seriennummer (optional)", "", key="kunde_q")
+    clauses = ["abgleich = :st"]
+    params = {"st": stufe}
+    if such.strip():
+        clauses.append("(fleet_kunde ILIKE :q OR radix_kunde ILIKE :q OR device_serial ILIKE :q)")
+        params["q"] = f"%{such.strip()}%"
+    df = frame(
+        "SELECT device_serial, model_display, fleet_kunde, fleet_ort, radix_kunde, radix_ort, ort_gleich "
+        f"FROM insights.vw_customer_device_mismatch WHERE {' AND '.join(clauses)} "
+        "ORDER BY ort_gleich ASC, device_serial LIMIT 500",
+        params,
+    )
+    if not df.empty:
+        df["ort_gleich"] = df["ort_gleich"].map({True: "ja", False: "nein"})
+        df = df.rename(columns={
+            "device_serial": "Geräte-Seriennummer", "model_display": "Modell",
+            "fleet_kunde": "Kunde (FleetMgmt)", "fleet_ort": "Ort (FleetMgmt)",
+            "radix_kunde": "Kunde (Radix)", "radix_ort": "Ort (Radix)", "ort_gleich": "Ort gleich",
+        })
+    st.write(f"**{len(df):,}**".replace(",", ".") + " Gerät(e) (max. 500)")
     st.dataframe(df, width="stretch", hide_index=True)

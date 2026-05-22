@@ -262,6 +262,38 @@ def r_material_install_check(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_material_install_check", sql))
 
 
+def r_customer_mismatch(args: dict[str, Any]) -> AnswerCard:
+    stufe_in = (args.get("stufe") or "abweichung").lower()
+    suche = (args.get("suche") or "").strip()
+    if stufe_in.startswith(("teil", "wahrsch")):
+        stufe = "teilweise"
+    elif stufe_in.startswith(("ueberein", "überein", "gleich", "match")):
+        stufe = "uebereinstimmung"
+    else:
+        stufe = "abweichung"
+    where = ["abgleich = :st"]
+    params: dict[str, Any] = {"st": stufe}
+    if suche:
+        where.append("(fleet_kunde ILIKE :s OR radix_kunde ILIKE :s OR device_serial ILIKE :s)")
+        params["s"] = f"%{suche}%"
+    sql = (
+        "SELECT device_serial AS seriennummer, model_display AS modell, "
+        "fleet_kunde AS kunde_fleet, fleet_ort AS ort_fleet, radix_kunde AS kunde_radix, "
+        "radix_ort AS ort_radix, ort_gleich "
+        f"FROM insights.vw_customer_device_mismatch WHERE {' AND '.join(where)} "
+        "ORDER BY ort_gleich ASC, seriennummer LIMIT 200"
+    )
+    df = _df(sql, params)
+    if stufe == "abweichung":
+        txt = (f"{len(df)} Gerät(e), bei denen der Kunde in FleetMgmt und Radix nicht übereinstimmt "
+               "(anderer Kunde/Standort → Risiko für Toner-Fehlversand und Falschabrechnung, bitte prüfen).")
+    elif stufe == "teilweise":
+        txt = f"{len(df)} Gerät(e) mit ähnlichem, aber nicht identischem Kundennamen (wahrscheinlich gleich)."
+    else:
+        txt = f"{len(df)} Gerät(e) mit identischem Kunden (nach Normalisierung) in beiden Systemen."
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_customer_device_mismatch", sql))
+
+
 def r_problem_devices(args: dict[str, Any]) -> AnswerCard:
     kunde = (args.get("kunde") or "").strip()
     nur_spam = args.get("nur_spam", False)
@@ -384,6 +416,13 @@ REGISTRY: list[Route] = [
           {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"},
            "min_tage": {"type": "integer", "description": "nur Alarme, die seit mind. N Tagen offen sind"}}, [],
           r_open_events),
+    Route("kunden_abgleich",
+          "Geräte, deren Kunde/Standort in FleetMgmt und Radix abweicht — Risiko für Toner-Fehlversand "
+          "und Falschabrechnung (z. B. weiterverkaufte Geräte oder falsche Zuordnung).",
+          {"stufe": {"type": "string", "enum": ["abweichung", "teilweise", "uebereinstimmung"],
+                     "description": "abweichung = klarer Unterschied (Standard), teilweise = ähnlich, sonst gleich"},
+           "suche": {"type": "string", "description": "optionaler Kunden- oder Seriennummer-Filter"}}, [],
+          r_customer_mismatch),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}

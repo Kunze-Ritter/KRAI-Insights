@@ -29,7 +29,7 @@ from insights.core.db import insights_engine
 from insights.core.logging import get_logger
 from insights.etl import fleetmgmt_extractor, krai_pm_extractor
 from insights.etl.radix import RadixAuthManager, RadixDataClient
-from insights.etl.radix.models import RadixContract, RadixWorkTime
+from insights.etl.radix.models import RadixContract, RadixCustomer, RadixWorkTime
 
 logger = get_logger(__name__)
 
@@ -329,6 +329,74 @@ _UPSERT_EVENT = text(
 )
 
 
+_UPSERT_RADIX_CUSTOMER = text(
+    """
+    INSERT INTO insights.radix_customers (
+        radix_customer_id, number, name, optional, legalform, street, zip, city,
+        country, address_id, inactive
+    ) VALUES (
+        :radix_customer_id, :number, :name, :optional, :legalform, :street, :zip, :city,
+        :country, :address_id, :inactive
+    )
+    ON CONFLICT (radix_customer_id) DO UPDATE SET
+        number      = EXCLUDED.number,
+        name        = EXCLUDED.name,
+        optional    = EXCLUDED.optional,
+        legalform   = EXCLUDED.legalform,
+        street      = EXCLUDED.street,
+        zip         = EXCLUDED.zip,
+        city        = EXCLUDED.city,
+        country     = EXCLUDED.country,
+        address_id  = EXCLUDED.address_id,
+        inactive    = EXCLUDED.inactive,
+        ingested_at = now()
+    """
+)
+
+
+async def _pull_all_customers() -> list[dict[str, Any]]:
+    """Bulk-pull the Radix customer master (paginated)."""
+    auth = RadixAuthManager.from_settings(get_settings())
+    out: list[dict[str, Any]] = []
+    skip = 0
+    async with RadixDataClient(auth) as client:
+        while True:
+            page = await client.get_customers(take=_BATCH, skip=skip)
+            if not page:
+                break
+            out.extend(page)
+            if len(page) < _BATCH:
+                break
+            skip += _BATCH
+    return out
+
+
+def load_radix_customers() -> int:
+    """Load the Radix customer master into insights.radix_customers (PII-safe).
+
+    Each row is validated through RadixCustomer, which drops email/phone/
+    salutation — only company name + location reach the cache.
+    """
+    raw = asyncio.run(_pull_all_customers())
+    rows: list[dict[str, Any]] = []
+    for c in raw:
+        try:
+            m = RadixCustomer.model_validate(c)
+        except Exception:
+            continue
+        rows.append({
+            "radix_customer_id": m.id, "number": m.number, "name": m.description,
+            "optional": m.optional, "legalform": m.legalform, "street": m.street,
+            "zip": m.zip, "city": m.town, "country": m.country,
+            "address_id": m.address_id, "inactive": m.inactive,
+        })
+    with insights_engine().begin() as conn:
+        for batch in _batched(rows, _BATCH):
+            conn.execute(_UPSERT_RADIX_CUSTOMER, batch)
+    logger.info("radix_customers loaded: %d", len(rows))
+    return len(rows)
+
+
 def load_events(limit: int | None = None, since_days: int | None = None) -> int:
     """Load FleetMgmt printer/SNMP alert events into insights.fleet_events."""
     total = 0
@@ -614,13 +682,14 @@ if __name__ == "__main__":
     parser.add_argument("--costs", action="store_true", help="crawl Radix material+labour costs")
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
     parser.add_argument("--snmp", action="store_true", help="snapshot-load SNMP predictions")
+    parser.add_argument("--customers", action="store_true", help="load Radix customer master (PII-safe)")
     parser.add_argument("--events", action="store_true", help="load FleetMgmt alert events (ACCEVENTHISTORY)")
     parser.add_argument("--events-since-days", type=int, default=None,
                         help="bound event load to the last N days (default: full history)")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
-                  or args.contracts or args.costs or args.snmp or args.events)
+                  or args.contracts or args.costs or args.snmp or args.events or args.customers)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -642,6 +711,9 @@ if __name__ == "__main__":
     if args.all or args.contracts:
         ctr = enrich_contracts_from_radix()
         logger.info("Contracts loaded: %s", ctr)
+    if args.all or args.customers:
+        rc = load_radix_customers()
+        logger.info("Radix customers loaded: %d.", rc)
     if args.all or args.events:
         ev = load_events(since_days=args.events_since_days)
         logger.info("Fleet events loaded: %d events processed.", ev)
