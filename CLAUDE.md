@@ -63,7 +63,7 @@ docker exec krai-fleetmgmt-mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U k
 - **Models:** canonical = KRAI `krai_core` (`products.model_number/series/article_code`[empty]); OEM code = Radix `article.model` (e.g. `AA7R021`); FleetMgmt has only display name. Serial-join gives ground-truth name↔code pairs → `model_catalog` + `model_aliases`.
 - **Money gaps:** material/labor € only from Radix (`/activity/sparepartprice`,`/time`). **Click prices (revenue) are NOT in any accessible system** (`ACCCONTRACTS.PageCharge*` 100% empty, Radix none) → need a user-supplied `config/contract_pricing.yaml`. Warranty fields empty → derive from install + 365d + per-mfr overrides.
 
-Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catalog, model_aliases, match_review_queue), `003` (serial non-unique + `vw_device_lookup`), `004` (vbm_lifecycle_events + `vw_vbm_lifecycle` + `vw_toner_yield_vs_oem`), `005` (widen coverage cols), `006` (fix yield view), `007` (vw_premature_failures — serial-backed warranty candidates), `008` (vw_model_code_backfill).
+Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catalog, model_aliases, match_review_queue), `003` (serial non-unique + `vw_device_lookup`), `004` (vbm_lifecycle_events + `vw_vbm_lifecycle` + `vw_toner_yield_vs_oem`), `005` (widen coverage cols), `006` (fix yield view), `007` (vw_premature_failures — serial-backed warranty candidates), `008` (vw_model_code_backfill), `009`/`010` (vw_warranty_assessment — time+usage 4-quadrant, credibility-filtered).
 
 ## Code layout
 
@@ -92,4 +92,6 @@ R0 (Radix client rewrite) done. Phase 1 in progress:
 
 `device_matcher.run_matching()` done: match_type serial=8,864 / unmatched=3,086; 372 duplicate-serial groups in `match_review_queue` (internal_id→Radix-number fallback skipped — only ~30 extra matches).
 
-Next: warranty assessment (time+usage 4-quadrant) + `error_code_ref`; part_instances/warranty_claims workflow + € PDF when costs unblocked. **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.
+**Warranty assessment done** (`vw_warranty_assessment`): per-lifecycle time+usage 4-quadrant — claim=3,277 (in 1yr & <70 pct rated) / negotiation=360 (>1yr & <70 pct → OEM leverage) / wear / normal / artifact (<100 pages noise filtered). Serial-backed.
+
+Next: `error_code_ref` (technician assistant, from `krai_intelligence`); part_instances/warranty_claims workflow + € PDF when costs unblocked; chat agent (Phase 4, needs Ollama). **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.
