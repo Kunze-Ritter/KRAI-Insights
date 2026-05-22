@@ -219,6 +219,79 @@ def enrich_devices_from_radix() -> int:
     return matched
 
 
+_SEED_MODEL_CATALOG = text(
+    """
+    WITH best AS (
+        SELECT DISTINCT ON (manufacturer_canonical, model_display)
+               manufacturer_canonical, model_display, manufacturer_model_code
+        FROM (
+            SELECT manufacturer_canonical, model_display, manufacturer_model_code, count(*) AS c
+            FROM insights.devices_unified
+            WHERE model_display IS NOT NULL AND manufacturer_canonical IS NOT NULL
+              AND manufacturer_model_code IS NOT NULL
+            GROUP BY 1, 2, 3
+        ) z
+        ORDER BY manufacturer_canonical, model_display, c DESC
+    ),
+    allm AS (
+        SELECT DISTINCT manufacturer_canonical, model_display
+        FROM insights.devices_unified
+        WHERE model_display IS NOT NULL AND manufacturer_canonical IS NOT NULL
+    )
+    INSERT INTO insights.model_catalog (manufacturer, model_number, manufacturer_model_code)
+    SELECT a.manufacturer_canonical, a.model_display, b.manufacturer_model_code
+    FROM allm a LEFT JOIN best b USING (manufacturer_canonical, model_display)
+    ON CONFLICT (manufacturer, model_number) DO UPDATE
+       SET manufacturer_model_code = COALESCE(EXCLUDED.manufacturer_model_code, model_catalog.manufacturer_model_code),
+           updated_at = now()
+    """
+)
+_SEED_ALIAS_FLEET = text(
+    """
+    INSERT INTO insights.model_aliases (model_id, source_system, raw_value, kind)
+    SELECT id, 'fleetmgmt', model_number, 'display_name' FROM insights.model_catalog
+    ON CONFLICT (source_system, kind, raw_value) DO NOTHING
+    """
+)
+_SEED_ALIAS_RADIX = text(
+    """
+    INSERT INTO insights.model_aliases (model_id, source_system, raw_value, kind)
+    SELECT id, 'radix', manufacturer_model_code, 'oem_code' FROM insights.model_catalog
+    WHERE manufacturer_model_code IS NOT NULL
+    ON CONFLICT (source_system, kind, raw_value) DO NOTHING
+    """
+)
+_LINK_DEVICE_MODEL = text(
+    """
+    UPDATE insights.devices_unified d
+    SET model_id = mc.id, updated_at = now()
+    FROM insights.model_catalog mc
+    WHERE d.manufacturer_canonical = mc.manufacturer
+      AND d.model_display = mc.model_number
+      AND d.model_id IS DISTINCT FROM mc.id
+    """
+)
+
+
+def seed_model_catalog() -> dict[str, int]:
+    """Build model_catalog + model_aliases from serial-joined devices; link devices.
+
+    Canonical model = (manufacturer_canonical, model_display); the modal Radix OEM
+    code (article.model) is attached for the KRAI article_code backfill list.
+    """
+    with insights_engine().begin() as conn:
+        conn.execute(_SEED_MODEL_CATALOG)
+        conn.execute(_SEED_ALIAS_FLEET)
+        conn.execute(_SEED_ALIAS_RADIX)
+        linked = conn.execute(_LINK_DEVICE_MODEL).rowcount
+        n_models = conn.execute(text("SELECT count(*) FROM insights.model_catalog")).scalar()
+        n_codes = conn.execute(
+            text("SELECT count(*) FROM insights.model_catalog WHERE manufacturer_model_code IS NOT NULL")
+        ).scalar()
+    logger.info("model_catalog: %d models (%d with OEM code); linked %d devices", n_models, n_codes, linked)
+    return {"models": n_models, "with_code": n_codes, "linked_devices": linked}
+
+
 def load_vbm_lifecycle(limit: int | None = None) -> int:
     """Load FleetMgmt consumable/CRU change events into vbm_lifecycle_events."""
     total = 0
@@ -234,9 +307,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Insights ETL load")
     parser.add_argument("--radix", action="store_true", help="enrich existing devices from Radix")
     parser.add_argument("--vbm", action="store_true", help="load VBM lifecycle events (ACCMARKERREFILL)")
-    parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix enrichment + VBM")
+    parser.add_argument("--models", action="store_true", help="seed model_catalog + aliases")
+    parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
-    only_flags = args.radix or args.vbm
+    only_flags = args.radix or args.vbm or args.models
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -246,3 +320,6 @@ if __name__ == "__main__":
     if args.all or args.vbm:
         v = load_vbm_lifecycle()
         logger.info("VBM lifecycle load complete: %d events processed.", v)
+    if args.all or args.models:
+        s = seed_model_catalog()
+        logger.info("Model catalog seeded: %s", s)

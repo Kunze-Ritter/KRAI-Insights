@@ -63,7 +63,7 @@ docker exec krai-fleetmgmt-mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U k
 - **Models:** canonical = KRAI `krai_core` (`products.model_number/series/article_code`[empty]); OEM code = Radix `article.model` (e.g. `AA7R021`); FleetMgmt has only display name. Serial-join gives ground-truth name↔code pairs → `model_catalog` + `model_aliases`.
 - **Money gaps:** material/labor € only from Radix (`/activity/sparepartprice`,`/time`). **Click prices (revenue) are NOT in any accessible system** (`ACCCONTRACTS.PageCharge*` 100% empty, Radix none) → need a user-supplied `config/contract_pricing.yaml`. Warranty fields empty → derive from install + 365d + per-mfr overrides.
 
-Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catalog, model_aliases, match_review_queue), `003` (serial non-unique + `vw_device_lookup`), `004` (vbm_lifecycle_events + `vw_vbm_lifecycle` + `vw_toner_yield_vs_oem`), `005` (widen coverage cols), `006` (fix yield view), `007` (vw_premature_failures — serial-backed warranty candidates).
+Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catalog, model_aliases, match_review_queue), `003` (serial non-unique + `vw_device_lookup`), `004` (vbm_lifecycle_events + `vw_vbm_lifecycle` + `vw_toner_yield_vs_oem`), `005` (widen coverage cols), `006` (fix yield view), `007` (vw_premature_failures — serial-backed warranty candidates), `008` (vw_model_code_backfill).
 
 ## Code layout
 
@@ -88,4 +88,6 @@ R0 (Radix client rewrite) done. Phase 1 in progress:
 
 **Phase 2 (VBM-Lifecycle) started:** `vbm_lifecycle_events` loaded (199,170 events from ACCMARKERREFILL; `load.py --vbm`). `vw_vbm_lifecycle` classifies real_new_cartridge (112,813) / no_serial (68,666) / reinsert_same (17,691) + `likely_false_report` (29,237) via window over device×colorant. `vw_toner_yield_vs_oem` reproduces documented OEM-vs-real yields (E40040 ~104 pct, X58045 high); **fleet avg ~127 pct of OEM** across 53 model/colorant combos. Cartridge serial captured for warranty evidence + false-report detection. Streamlit **VBM-Lifespan page** (OEM-yield, false reports, warranty candidates, per-device toner history) + `vw_premature_failures` (6,133 candidates, 6,086 serial-backed).
 
-Next: `device_matcher` (internal_id fallback + dup-serial → review), model-catalog seed (OEM code → KRAI `article_code` backfill list); Phase 2 cont. = part_instances + warranty_claims (serial-backed PDF evidence) + error_code_ref. **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.
+**Model catalog seeded** (`load.py --models`): 2,342 canonical models (1,607 with Radix OEM code), 11,331 devices linked to `model_id`; `vw_model_code_backfill` is the OEM-code→KRAI `article_code` list (e.g. E40040→3PZ35A, C450i→AA7R021).
+
+Next: `device_matcher` (internal_id fallback + dup-serial → review); Phase 2 cont. = part_instances + warranty_claims (serial-backed PDF evidence) + error_code_ref. **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.
