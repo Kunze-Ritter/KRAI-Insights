@@ -24,6 +24,8 @@ pages = [
     st.Page("views/geraeteinventar.py", title="Geräte-Inventar", icon="🖨️"),
     st.Page("views/verbrauchsmaterial.py", title="Verbrauchsmaterial", icon="🧪"),
     st.Page("views/kosten.py", title="Kosten & Verträge", icon="💶"),
+    st.Page("views/servicequalitaet.py", title="Service-Qualität", icon="🚨"),
+    st.Page("views/datenqualitaet.py", title="Datenqualität & Abgleich", icon="🔍"),
     st.Page("views/fragen.py", title="Fragen", icon="💬"),
 ]
 st.navigation(pages).run()
