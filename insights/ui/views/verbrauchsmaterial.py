@@ -8,6 +8,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
+from insights.ui.links import doc
 from sqlalchemy import text
 
 WARRANTY_LABEL = {
@@ -56,6 +57,7 @@ st.caption(
     "Verbrauchsmaterial (Toner, Trommeln, Wartungsteile): wie lange ein Teil tatsächlich "
     "gehalten hat, im Vergleich zur Hersteller-Angabe — als Grundlage für Kalkulation und Garantie."
 )
+st.caption(f"📖 Garantie-Logik, Fehlmeldungs-Filter & Restwert-Modell: [Doku Garantie]({doc('garantie.md')})")
 
 k = kennzahlen()
 c1, c2, c3, c4 = st.columns(4)

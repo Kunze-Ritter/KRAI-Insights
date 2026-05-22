@@ -81,6 +81,7 @@ Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catal
 - Plain sequential SQL migrations (portable back into KRAI later), not ORM auto-migration. Migrations take **no bind params**; the runner doubles literal `%` so it's safe in comments/LIKE. A view that depends on a column blocks `ALTER ... TYPE` → drop + recreate the view in the same migration.
 - Pydantic v2 (`model_config = ConfigDict(...)`), `from __future__ import annotations`, type hints.
 - Ruff is configured (pyupgrade etc.) — keep `ruff check` clean.
+- **Document in parallel (user rule).** Every meaningful finding/decision (the *why*) goes into `docs/` (German, user-facing) as it happens — esp. analytics logic, data quirks, and known gaps. Dashboard metrics link to the relevant doc via tooltips/captions (`insights/ui/links.py` → GitHub `docs/`). Keep `docs/` in sync when logic changes.
 - Commit only when asked; if on `main`, branch first. Co-author trailer per repo policy.
 
 ## Status (2026-05-22)

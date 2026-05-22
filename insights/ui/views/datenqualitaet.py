@@ -9,6 +9,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
+from insights.ui.links import doc
 from sqlalchemy import text
 
 VALID_LABEL = {
@@ -70,6 +71,7 @@ st.caption(
     "Flotten-Verwaltung und Service-System gegeneinander prüfen — für saubere Abrechnung, "
     "korrekte Geräte-Zuordnung und weniger Toner-Fehlversand."
 )
+st.caption(f"📖 Methodik & Begründung: [Doku Datenqualität & Abgleich]({doc('datenqualitaet.md')})")
 
 k = kennzahlen()
 c1, c2, c3, c4 = st.columns(4)

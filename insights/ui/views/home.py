@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 from insights.core.config import get_settings
 from insights.core.db import insights_engine
+from insights.ui.links import doc
 from sqlalchemy import text
 
 settings = get_settings()
@@ -31,6 +32,8 @@ def lagebericht() -> dict:
 st.title("📊 KRAI Insights")
 st.caption("Was die Daten gerade hergeben — die wichtigsten Punkte zum Handeln. "
            "Für konkrete Fragen den Assistenten (Seite Fragen) nutzen.")
+st.caption(f"📖 Wie die Zahlen entstehen und warum: [Dokumentation]({doc('README.md')}) "
+           f"· [Datenquellen & Datenschutz]({doc('datenquellen.md')})")
 
 k = lagebericht()
 if not k:
@@ -49,7 +52,8 @@ c1, c2, c3 = st.columns(3)
 c1.metric("Geschätztes Rückhol-Potenzial", _eur(schaetz),
           help=f"Realistisch: erstattet wird nur die NICHT verbrauchte Restlaufzeit. "
                f"Summe der Restlaufzeit-Anteile ({_de(restwert)}) x ~{preis} € mittlerer Tonerpreis. "
-               "Grobe Schätzung (wenige Preise bekannt) — dient der Größenordnung.")
+               "Grobe Schätzung (wenige Preise bekannt) — dient der Größenordnung. "
+               f"Methodik: {doc('garantie.md', '4-was-ist-der--wert-restwert-modell')}")
 c2.metric("Reklamierbare Garantiefälle", _de(claims),
           help="Material innerhalb 1 Jahr UND unter 70 % der Soll-Laufleistung; Fehlmeldungen "
                "(Wiedereinsetzen / Tür auf-zu) sind herausgerechnet.")
@@ -64,6 +68,8 @@ st.caption(
     f"die Zähler belegt. Zusätzlich **{_de(int(k.get('verhandlung_kandidaten') or 0))}** Verhandlungs-"
     "Kandidaten (über 1 Jahr, aber unter Soll). Liste: Seite Verbrauchsmaterial → Garantie-Bewertung."
 )
+st.markdown(f"**Wichtig:** Die Summe ist historisch (~9 Jahre); heute einreichbar ist nur das jüngste "
+            f"Zeitfenster. Methodik, Restwert-Modell und Zeitfenster: [Doku Garantie]({doc('garantie.md')}).")
 
 st.divider()
 
@@ -80,6 +86,8 @@ c3.metric("Verbrauch in 14 Tagen fällig", _de(int(k.get("verbrauch_14d") or 0))
           help="Toner/Teile, die bald leer sind → Liefer-/Tourenplanung. Seite: Verbrauchsmaterial.")
 c4.metric("Auffällige Geräte", _de(int(k.get("problem_geraete") or 0)),
           help="Sehr viele Alarme (defekte Sensoren / wiederkehrende Störungen). Seite: Service-Qualität.")
+st.caption(f"📖 Methodik: [Datenqualität & Abgleich]({doc('datenqualitaet.md')}) · "
+           f"[Kennzahlen-Glossar]({doc('kennzahlen.md')})")
 
 st.divider()
 

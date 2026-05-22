@@ -9,6 +9,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
+from insights.ui.links import doc
 from sqlalchemy import text
 
 EINSTUFUNG_LABEL = {
@@ -40,6 +41,8 @@ st.caption(
     "Alarme der Drucksysteme aus der Flotten-Verwaltung (letzte 365 Tage). Hilft, "
     "auffällige Geräte und störanfällige Modelle früh zu erkennen — bevor der Kunde anruft."
 )
+st.caption("📖 Was die Werte bedeuten: "
+           f"[Kennzahlen-Glossar]({doc('kennzahlen.md', 'service-qualität')})")
 
 k = kennzahlen()
 c1, c2, c3 = st.columns(3)
