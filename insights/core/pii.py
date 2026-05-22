@@ -13,9 +13,12 @@ from __future__ import annotations
 import re
 
 # A (possibly hyphenated/two-part) capitalised German name following a salutation.
+# No leading word-boundary on purpose: service notes sometimes glue words
+# ("...melden nichtHerr Neininger..."), and the trailing "<space><Name>" is the
+# real anchor, so a stray boundary just lets names slip through.
 _NAME = r"[A-ZÄÖÜ][a-zäöüß]+(?:[-\s][A-ZÄÖÜ][a-zäöüß]+)?"
 _CONTACT_RE = re.compile(
-    rf"\b(?:z\.?\s*Hd\.?\s*)?(?:Herrn?|Frau|Hr\.?|Fr\.?|Familie|Fam\.?)\s+{_NAME}",
+    rf"(?:z\.?\s*Hd\.?\s*)?(?:Herrn?|Frau|Hr\.?|Fr\.?|Familie|Fam\.?)\s+{_NAME}",
 )
 _EMAIL_RE = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
 

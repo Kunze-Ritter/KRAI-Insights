@@ -48,7 +48,7 @@ def daily_refresh() -> None:
     _run_step("radix_customers", load.load_radix_customers)
     _run_step("model_catalog", load.seed_model_catalog)
     _run_step("snmp_predictions", load.load_snmp_predictions)
-    _run_step("counter_monthly", load.load_counter_monthly)
+    _run_step("counter_daily", load.load_counter_daily)
     _run_step("fleet_events", load.load_events)
     _run_step("vbm_lifecycle", load.load_vbm_lifecycle)
     _run_step("error_codes", load.load_error_codes)

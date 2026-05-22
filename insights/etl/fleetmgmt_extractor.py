@@ -251,28 +251,28 @@ def fetch_events(limit: int | None = None, since_days: int | None = None) -> Ite
             yield rec
 
 
-# Monthly page-counter timeline per device (downsampled from 48M SNMP rows to
-# ~183k device-months). Lets us look up the device's page count at any date ->
-# spare-part lifetime in PAGES, not just days.
-_COUNTER_MONTHLY_SQL = """
+# Daily page-counter timeline per device (one row per device-day with a reading;
+# ~4.9M rows from 48M SNMP rows). Lets us look up the device's page count at the
+# exact DAY of a part install/replacement -> accurate spare-part lifetime in pages.
+_COUNTER_DAILY_SQL = """
 SELECT
     DeviceId AS fleetmgmt_device_id,
-    DATEFROMPARTS(YEAR(TimeUTC), MONTH(TimeUTC), 1) AS month,
+    CAST(TimeUTC AS date) AS day,
     MAX(PageCount) AS page_count
 FROM ACCSNMPHISTORY
 WHERE PageCount > 0
-GROUP BY DeviceId, YEAR(TimeUTC), MONTH(TimeUTC)
+GROUP BY DeviceId, CAST(TimeUTC AS date)
 """
 
 
-def fetch_counter_monthly() -> Iterator[dict[str, Any]]:
-    """Yield (device, month, max page_count) — the monthly counter timeline."""
+def fetch_counter_daily() -> Iterator[dict[str, Any]]:
+    """Yield (device, day, max page_count) — the daily counter timeline."""
     with fleetmgmt_engine().connect() as conn:
-        for row in conn.execute(text(_COUNTER_MONTHLY_SQL)).mappings():
+        for row in conn.execute(text(_COUNTER_DAILY_SQL)).mappings():
             rec = dict(row)
-            m = rec.get("month")
-            if m is not None and hasattr(m, "date"):
-                rec["month"] = m.date()
+            d = rec.get("day")
+            if d is not None and hasattr(d, "date"):
+                rec["day"] = d.date()
             yield rec
 
 

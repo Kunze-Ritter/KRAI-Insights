@@ -117,16 +117,21 @@ Mainboards, …). Die Logik ist anders:
    (auffällig kurze Standzeit, z. B. ein Modell, dessen Walzen im Median nach
    ~50 Tagen getauscht werden).
 
-**Standzeit in Seiten:** Zusätzlich zu Tagen wird die Standzeit in **Seiten**
-berechnet — aus einer Monats-Zählerstand-Zeitleiste je Gerät
-(`device_counter_monthly`, aus FleetMgmt-SNMP). Seitenstand beim nächsten Tausch −
-Seitenstand beim Einbau = gelaufene Seiten. Beispiele (Median): KM C759 Trommel
-~304.000 Seiten, C754e ~210.000, C450i ~80.000.
+**Standzeit in Seiten (tagesgenau):** Zusätzlich zu Tagen wird die Standzeit in
+**Seiten** berechnet. Ein Teil wird an einem konkreten **Tag** ein- bzw. ausgebaut,
+darum lesen wir den Zählerstand der **nächstgelegenen Messung an diesem Tag** (nicht
+einen Monatswert) — aus einer tagesgenauen Zähler-Zeitleiste je Gerät
+(`device_counter_daily`, ~4,9 Mio. Geräte-Tage aus FleetMgmt-SNMP; Lookup via
+`insights.page_at(gerät, datum)`). Seitenstand beim nächsten Tausch − beim Einbau =
+gelaufene Seiten. Beispiele (Median): KM C754e Trommel ~200.000 Seiten, C458
+~117.000, C650i ~95.000, C450i ~80.000.
 
 **Grenzen / To-do:**
-- Seiten-Treffer aktuell ~8 % (exakter Monats-Treffer; fehlt der Zählerstand im
-  Einbau- oder Tausch-Monat, bleibt die Seitenzahl leer). Verbesserbar durch
-  Interpolation auf den nächstgelegenen Monat.
+- **Abdeckung ~26 % der Ersatzteil-Geräte:** von ~4.700 Geräten mit Teile-Einbauten
+  sind ~2.450 per Seriennummer mit FleetMgmt verknüpft, und nur ~1.250 haben
+  überhaupt eine SNMP-Seitenzähler-Historie (der Rest sind Radix-only- oder stille
+  Geräte ohne Zählerdaten). Wo Zählerdaten fehlen, bleibt die Seitenzahl leer — die
+  Tage-Standzeit steht aber immer. (Keine Ungenauigkeit, nur fehlende Quelle.)
 - Teiltyp per Stichwort erkannt; „sonstige" ist noch ein großer Topf.
 - Paarung über gleiche `article_code` — ein Nachfolger-Teil mit neuer Artikelnummer
   wird (noch) nicht gepaart.

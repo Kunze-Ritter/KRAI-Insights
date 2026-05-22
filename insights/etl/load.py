@@ -472,24 +472,26 @@ def load_shipping_addresses() -> int:
     return len(rows)
 
 
-_INSERT_COUNTER_MONTHLY = text(
+_INSERT_COUNTER_DAILY = text(
     """
-    INSERT INTO insights.device_counter_monthly (fleetmgmt_device_id, month, page_count)
-    VALUES (:fleetmgmt_device_id, :month, :page_count)
-    ON CONFLICT (fleetmgmt_device_id, month) DO UPDATE SET page_count = EXCLUDED.page_count
+    INSERT INTO insights.device_counter_daily (fleetmgmt_device_id, day, page_count)
+    VALUES (:fleetmgmt_device_id, :day, :page_count)
+    ON CONFLICT (fleetmgmt_device_id, day) DO UPDATE SET page_count = EXCLUDED.page_count
     """
 )
 
 
-def load_counter_monthly() -> int:
-    """Snapshot-load the monthly page-counter timeline (truncate + reload)."""
+def load_counter_daily() -> int:
+    """Snapshot-load the daily page-counter timeline (truncate + reload, ~4.9M rows)."""
     total = 0
     with insights_engine().begin() as conn:
-        conn.exec_driver_sql("TRUNCATE insights.device_counter_monthly")
-        for batch in _batched(fleetmgmt_extractor.fetch_counter_monthly(), _BATCH):
-            conn.execute(_INSERT_COUNTER_MONTHLY, list(batch))
+        conn.exec_driver_sql("TRUNCATE insights.device_counter_daily")
+        for batch in _batched(fleetmgmt_extractor.fetch_counter_daily(), 5000):
+            conn.execute(_INSERT_COUNTER_DAILY, list(batch))
             total += len(batch)
-            logger.info("loaded counter-monthly rows (running total %d)", total)
+            if total % 100000 == 0:
+                logger.info("loaded counter-daily rows (running total %d)", total)
+    logger.info("counter-daily timeline loaded: %d rows", total)
     return total
 
 
@@ -890,8 +892,8 @@ if __name__ == "__main__":
         ev = load_events(since_days=args.events_since_days)
         logger.info("Fleet events loaded: %d events processed.", ev)
     if args.all or args.counters:
-        cm = load_counter_monthly()
-        logger.info("Counter-monthly timeline loaded: %d rows.", cm)
+        cm = load_counter_daily()
+        logger.info("Counter-daily timeline loaded: %d rows.", cm)
     if args.costs:
         cst = crawl_costs(customer_limit=args.cost_limit)
         logger.info("Cost events loaded: %s", cst)
