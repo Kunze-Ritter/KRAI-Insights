@@ -90,4 +90,6 @@ R0 (Radix client rewrite) done. Phase 1 in progress:
 
 **Model catalog seeded** (`load.py --models`): 2,342 canonical models (1,607 with Radix OEM code), 11,331 devices linked to `model_id`; `vw_model_code_backfill` is the OEM-code→KRAI `article_code` list (e.g. E40040→3PZ35A, C450i→AA7R021).
 
-Next: `device_matcher` (internal_id fallback + dup-serial → review); Phase 2 cont. = part_instances + warranty_claims (serial-backed PDF evidence) + error_code_ref. **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.
+`device_matcher.run_matching()` done: match_type serial=8,864 / unmatched=3,086; 372 duplicate-serial groups in `match_review_queue` (internal_id→Radix-number fallback skipped — only ~30 extra matches).
+
+Next: warranty assessment (time+usage 4-quadrant) + `error_code_ref`; part_instances/warranty_claims workflow + € PDF when costs unblocked. **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.

@@ -20,6 +20,13 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 
+from sqlalchemy import text
+
+from insights.core.db import insights_engine
+from insights.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 # Internal id embedded in FleetMgmt ACCDEVICES.Location, e.g. "...ID:17484...".
 INTERNAL_ID_RE = re.compile(r"ID[:\s]*(\d{3,})", re.IGNORECASE)
 
@@ -53,10 +60,51 @@ def extract_internal_id(location: str | None) -> str | None:
     return m.group(1) if m else None
 
 
-def match_device(serial: str | None, internal_id: str | None) -> DeviceMatch:
-    """Match a single device across sources.
+def run_matching() -> dict[str, int]:
+    """Reconcile match state in devices_unified (set-based, idempotent).
 
-    TODO(device_matcher): implement the 4-step strategy against loaded source
-    indexes; emit ambiguous cases to a conflict/review queue.
+    Serial hard-matching to Radix already happens in `load.enrich_devices_from_radix`
+    (match_type='serial'). This step:
+      1. marks the remainder 'unmatched' (serial present, not found in Radix);
+      2. (re)populates the review queue with duplicate serials — the only
+         actionable data-quality issue (most 'unmatched' are simply FleetMgmt-only
+         devices, not in Radix, so they are flagged on the row, not queued).
+
+    NOTE: an internal_id->Radix-number fallback was evaluated but yields only ~30
+    extra matches (most unmatched devices are genuinely absent from Radix), so it
+    is intentionally not run here.
     """
-    raise NotImplementedError("device_matcher: to be implemented after the extractors land")
+    with insights_engine().begin() as conn:
+        unmatched = conn.execute(
+            text(
+                "UPDATE insights.devices_unified SET match_type = 'unmatched', updated_at = now() "
+                "WHERE radix_device_number IS NULL AND match_type IS NULL"
+            )
+        ).rowcount
+        conn.execute(
+            text(
+                "DELETE FROM insights.match_review_queue WHERE resolved = FALSE AND reason = 'duplicate_serial'"
+            )
+        )
+        dups = conn.execute(
+            text(
+                """
+                INSERT INTO insights.match_review_queue (manufacturer_serial, reason, details)
+                SELECT manufacturer_serial, 'duplicate_serial',
+                       jsonb_build_object('device_count', count(*),
+                                          'fleetmgmt_device_ids', jsonb_agg(fleetmgmt_device_id))
+                FROM insights.devices_unified
+                WHERE manufacturer_serial IS NOT NULL
+                GROUP BY manufacturer_serial
+                HAVING count(*) > 1
+                RETURNING 1
+                """
+            )
+        ).rowcount
+    stats = {"marked_unmatched": unmatched, "duplicate_serial_groups": dups}
+    logger.info("device matching reconciled: %s", stats)
+    return stats
+
+
+if __name__ == "__main__":
+    run_matching()
