@@ -61,18 +61,19 @@ with tab_fa:
         params["q"] = f"%{such.strip()}%"
     df = frame(
         "SELECT customer_name, manufacturer_canonical, model_display, device_serial, teiltyp, "
-        "description, einbau_datum, erneut_getauscht, standzeit_tage, standzeit_seiten, diagnose "
+        "description, basis, standzeit_tage, standzeit_seiten, oem_nominal_seiten, pct_vom_oem, "
+        "einbau_datum, erneut_getauscht, diagnose "
         f"FROM insights.vw_part_early_failures WHERE {' AND '.join(clauses)} "
-        "ORDER BY standzeit_tage ASC LIMIT 500",
+        "ORDER BY pct_vom_oem ASC NULLS LAST, standzeit_tage ASC LIMIT 500",
         params,
     )
     if not df.empty:
         df = df.rename(columns={
             "customer_name": "Kunde", "manufacturer_canonical": "Hersteller", "model_display": "Modell",
             "device_serial": "Geräte-Seriennummer", "teiltyp": "Teiltyp", "description": "Teil",
-            "einbau_datum": "Eingebaut", "erneut_getauscht": "Erneut getauscht",
-            "standzeit_tage": "Standzeit (Tage)", "standzeit_seiten": "Standzeit (Seiten)",
-            "diagnose": "Diagnose/Symptom",
+            "basis": "Bewertung", "standzeit_tage": "Standzeit (Tage)", "standzeit_seiten": "Standzeit (Seiten)",
+            "oem_nominal_seiten": "Hersteller-Soll (Seiten)", "pct_vom_oem": "% vom Soll",
+            "einbau_datum": "Eingebaut", "erneut_getauscht": "Erneut getauscht", "diagnose": "Diagnose/Symptom",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Frühausfall/Frühausfälle (max. 500)")
     st.dataframe(df, width="stretch", hide_index=True)
@@ -94,7 +95,7 @@ with tab_lz:
         params["m"] = f"%{modell.strip()}%"
     df = frame(
         "SELECT hersteller, modell, teiltyp, stichproben, geraete, median_standzeit_tage, "
-        "stichproben_seiten, median_standzeit_seiten "
+        "stichproben_seiten, median_standzeit_seiten, oem_nominal_seiten "
         f"FROM insights.vw_part_lifetime_stats WHERE {' AND '.join(clauses)} "
         "ORDER BY median_standzeit_tage ASC LIMIT 500",
         params,
@@ -105,6 +106,7 @@ with tab_lz:
             "stichproben": "Wechsel (Stichproben)", "geraete": "Geräte",
             "median_standzeit_tage": "Median Standzeit (Tage)",
             "stichproben_seiten": "davon mit Seitenwert", "median_standzeit_seiten": "Median Standzeit (Seiten)",
+            "oem_nominal_seiten": "Hersteller-Soll (Seiten)",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Modell/Teiltyp-Kombination(en)")
     st.dataframe(df, width="stretch", hide_index=True)

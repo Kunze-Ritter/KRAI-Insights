@@ -429,12 +429,14 @@ def r_part_early_failures(args: dict[str, Any]) -> AnswerCard:
     sql = (
         "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
         "device_serial AS seriennummer, teiltyp, description AS teil, einbau_datum, erneut_getauscht, "
-        "standzeit_tage, standzeit_seiten, diagnose FROM insights.vw_part_early_failures "
-        f"WHERE {' AND '.join(where)} ORDER BY standzeit_tage ASC LIMIT 100"
+        "standzeit_tage, standzeit_seiten, oem_nominal_seiten AS oem_soll_seiten, pct_vom_oem, "
+        "basis, diagnose FROM insights.vw_part_early_failures "
+        f"WHERE {' AND '.join(where)} ORDER BY pct_vom_oem ASC NULLS LAST, standzeit_tage ASC LIMIT 100"
     )
     df = _df(sql, params)
-    txt = (f"{len(df)} Ersatzteil-Frühausfälle (innerhalb der ~1-Jahres-Garantie erneut getauscht → "
-           "Reklamation/Geld-zurück prüfen). Niedrigste Standzeit zuerst.")
+    txt = (f"{len(df)} Ersatzteil-Frühausfälle → Reklamation/Geld-zurück prüfen. Wo Hersteller-Soll "
+           "bekannt ist (Spalte basis = OEM-Soll), zählt 'unter 70 % der Soll-Seiten'; sonst die "
+           "1-Jahres-Heuristik. Niedrigster Prozent-vom-Soll zuerst.")
     return AnswerCard(text=txt, data=df, citation=_cite("vw_part_early_failures", sql))
 
 

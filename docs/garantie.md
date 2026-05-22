@@ -131,12 +131,13 @@ Soll-Laufzeiten je Teil (Trommel, Fixiereinheit, Transferband, Walzen …) liege
 der KRAI-Datenbank (`krai_pm.part_lifetimes`, aus einer Konica-Minolta-Excel,
 `source=km_excel_v1.18`) und werden nach `insights.part_lifetime_oem` gespiegelt
 (126 Werte, aktuell **nur Konica Minolta**: z. B. Trommel 180–300k, Fixiereinheit
-540–840k, Transferband 360k–1,2M Seiten). Damit lässt sich die **reale** Standzeit
-gegen das **OEM-Soll** stellen (Sicht `vw_part_oem_comparison`), statt nur die
-1-Jahres-Heuristik zu nutzen. **Vorläufig:** der Median-Vergleich je Modell ist noch
-grob (gemischt aus Früh- und Normalausfällen; Zuordnung real-Teil → exakte
-OEM-Teilenummer statt nur Kategorie steht aus). Sauberer ist der Vergleich pro
-Einzel-Tausch (gelaufene Seiten < X % des OEM-Soll = Frühausfall) — nächster Schritt.
+540–840k, Transferband 360k–1,2M Seiten). Damit bewerten wir **pro Einzel-Tausch**: ein Teil, das **< 70 % seines OEM-Soll**
+(Seiten) erreicht hat, ist ein Frühausfall (`vw_part_early_failures`, Spalte
+`basis = OEM-Soll (Seiten)`). **Nur wo kein OEM-Soll existiert**, greift als Fallback
+die 1-Jahres-Zeitheuristik (`basis = Zeit (1 Jahr)`). Aktuell: ~345 Fälle OEM-belegt
+(Konica Minolta), ~3.700 über die Zeitheuristik — z. B. eine Trommel, die nur 809
+von 230.000 Soll-Seiten lief (Diagnose „Streifen auf Ausdruck"). Die Soll-Zuordnung
+läuft über die Teil-Kategorie (Teilenummer-genaue Zuordnung wäre noch genauer).
 HP/Lexmark bräuchten ihre eigene Soll-Liste (Excel) analog.
 
 **Grenzen / To-do:**
