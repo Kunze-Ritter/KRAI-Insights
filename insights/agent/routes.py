@@ -69,6 +69,8 @@ def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
         f"der Soll-Laufzeit erreicht) → geschätzt {_eur(schaetz)} erstattbar (nur die ungenutzte "
         f"Restlaufzeit, ~{preis} € je Einheit); zusätzlich {int(r['verhandlung_kandidaten'] or 0)} "
         "Verhandlungs-Kandidaten als Hebel.\n"
+        f"• Ersatzteile: {int(r['ersatzteil_fruehausfaelle'] or 0)} Frühausfälle (Fixierer/Trommel/Walzen … "
+        "innerhalb 1 Jahr erneut getauscht) → Reklamation prüfen.\n"
         f"• Abrechnungsrisiko: {int(r['stille_unter_vertrag'] or 0)} Geräte unter Vertrag melden keine Zähler "
         "(Abrechnung läuft auf Schätzwerten).\n"
         f"• Datenqualität: {int(r['kunden_abweichung'] or 0)} Geräte mit abweichender Kundenzuordnung "
@@ -427,7 +429,7 @@ def r_part_early_failures(args: dict[str, Any]) -> AnswerCard:
     sql = (
         "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
         "device_serial AS seriennummer, teiltyp, description AS teil, einbau_datum, erneut_getauscht, "
-        "standzeit_tage, standzeit_seiten FROM insights.vw_part_early_failures "
+        "standzeit_tage, standzeit_seiten, diagnose FROM insights.vw_part_early_failures "
         f"WHERE {' AND '.join(where)} ORDER BY standzeit_tage ASC LIMIT 100"
     )
     df = _df(sql, params)

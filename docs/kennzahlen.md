@@ -15,6 +15,13 @@ Jede Dashboard-Kennzahl in einem Satz: Bedeutung, Quelle, Detail-Doku.
 | **Verbrauch in 14 Tagen fällig** | Toner/Teile, die bald leer sind → Tour-/Bestellplanung | — |
 | **Auffällige Geräte** | sehr viele Alarme (defekte Sensoren / wiederkehrende Störungen) | — |
 
+## Ersatzteile & Standzeit
+
+| Kennzahl | Bedeutung | Detail |
+|---|---|---|
+| **Frühausfälle (≤ 1 Jahr)** | Ersatzteil innerhalb der ~1-Jahres-Garantie erneut getauscht → Reklamation; mit Symptom/Diagnose aus dem Ticket | [Garantie §6](garantie.md#6-ersatzteile-nicht-nur-toner) |
+| **Standzeit je Modell/Teil** | reale Standzeit (Median, Tage + Seiten) je Modell × Teiltyp aus Wiedereinbau-Intervallen → Vorhersage/PM + störanfällige Teile | [Garantie §6](garantie.md#6-ersatzteile-nicht-nur-toner) |
+
 ## Service-Qualität
 
 | Kennzahl | Bedeutung |

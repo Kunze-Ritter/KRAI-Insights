@@ -84,9 +84,14 @@ c2.metric("Kundenzuordnung prüfen", _de(int(k.get("kunden_abweichung") or 0)),
                "Seite: Datenqualität → Kunden-Abgleich.")
 c3.metric("Verbrauch in 14 Tagen fällig", _de(int(k.get("verbrauch_14d") or 0)),
           help="Toner/Teile, die bald leer sind → Liefer-/Tourenplanung. Seite: Verbrauchsmaterial.")
-c4.metric("Auffällige Geräte", _de(int(k.get("problem_geraete") or 0)),
+c4.metric("Ersatzteil-Frühausfälle", _de(int(k.get("ersatzteil_fruehausfaelle") or 0)),
+          help="Ersatzteile, die innerhalb der ~1-Jahres-Garantie erneut getauscht wurden "
+               "(Reklamation/Geld zurück). Seite: Ersatzteile & Standzeit.")
+c5 = st.columns(4)[0]
+c5.metric("Auffällige Geräte", _de(int(k.get("problem_geraete") or 0)),
           help="Sehr viele Alarme (defekte Sensoren / wiederkehrende Störungen). Seite: Service-Qualität.")
 st.caption(f"📖 Methodik: [Datenqualität & Abgleich]({doc('datenqualitaet.md')}) · "
+           f"[Ersatzteile/Garantie]({doc('garantie.md', '6-ersatzteile-nicht-nur-toner')}) · "
            f"[Kennzahlen-Glossar]({doc('kennzahlen.md')})")
 
 st.divider()
