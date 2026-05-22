@@ -65,6 +65,28 @@ class RadixCustomer(_RadixModel):
     # PII intentionally omitted: salutation, letterSalutation, email, phone, fax, contacts.
 
 
+class RadixShippingAddress(_RadixModel):
+    """A delivery address of a customer (where toner/parts get shipped).
+
+    The raw payload carries PII (`optional` = a "z.Hd. Herr ..." care-of line,
+    plus email/phone/fax/salutation). This whitelist keeps only the delivery
+    location (label + street + city); `extra="ignore"` drops the rest.
+    """
+
+    id: str = Field(..., alias="id")
+    customer_id: str | None = Field(None, alias="customerId")
+    address_id: str | None = Field(None, alias="addressId")
+    description: str | None = None        # location/branch label (e.g. "Rathaus im Stühlinger")
+    street: str | None = None
+    streetnumber: str | None = None
+    zip: str | None = Field(None, alias="postalCode")
+    town: str | None = None
+    country: str | None = None
+    is_default: bool | None = Field(None, alias="defaultShippingAddress")
+    inactive: bool | None = None
+    # PII intentionally omitted: optional (care-of person), email, phone, fax, salutation.
+
+
 class RadixSerialNumber(_RadixModel):
     """A device in Radix.
 

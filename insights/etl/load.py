@@ -29,7 +29,7 @@ from insights.core.db import insights_engine
 from insights.core.logging import get_logger
 from insights.etl import fleetmgmt_extractor, krai_pm_extractor
 from insights.etl.radix import RadixAuthManager, RadixDataClient
-from insights.etl.radix.models import RadixContract, RadixCustomer, RadixWorkTime
+from insights.etl.radix.models import RadixContract, RadixCustomer, RadixShippingAddress, RadixWorkTime
 
 logger = get_logger(__name__)
 
@@ -397,6 +397,78 @@ def load_radix_customers() -> int:
     return len(rows)
 
 
+_UPSERT_SHIPPING = text(
+    """
+    INSERT INTO insights.radix_shipping_addresses (
+        id, radix_customer_id, address_id, description, street, streetnumber,
+        zip, city, country, is_default, inactive
+    ) VALUES (
+        :id, :radix_customer_id, :address_id, :description, :street, :streetnumber,
+        :zip, :city, :country, :is_default, :inactive
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        radix_customer_id = EXCLUDED.radix_customer_id,
+        description = EXCLUDED.description,
+        street      = EXCLUDED.street,
+        streetnumber = EXCLUDED.streetnumber,
+        zip         = EXCLUDED.zip,
+        city        = EXCLUDED.city,
+        country     = EXCLUDED.country,
+        is_default  = EXCLUDED.is_default,
+        inactive    = EXCLUDED.inactive,
+        ingested_at = now()
+    """
+)
+
+
+async def _pull_shipping(customer_ids: list[str]) -> list[dict[str, Any]]:
+    """Fetch delivery addresses per customer (bounded concurrency)."""
+    auth = RadixAuthManager.from_settings(get_settings())
+    sem = asyncio.Semaphore(15)
+    rows: list[dict[str, Any]] = []
+    async with RadixDataClient(auth) as client:
+        async def one(cid: str) -> None:
+            async with sem:
+                try:
+                    data = await client.get_customer_shippingaddresses(cid)
+                except Exception:
+                    return
+            rows.extend(data)
+
+        await asyncio.gather(*(one(c) for c in customer_ids))
+    return rows
+
+
+def load_shipping_addresses() -> int:
+    """Load Radix delivery addresses for device-bearing customers (PII-safe)."""
+    with insights_engine().connect() as conn:
+        customer_ids = [
+            r[0] for r in conn.execute(
+                text("SELECT DISTINCT radix_customer_id FROM insights.devices_unified "
+                     "WHERE radix_customer_id IS NOT NULL")
+            ).all()
+        ]
+    raw = asyncio.run(_pull_shipping(customer_ids))
+    deduped: dict[str, dict[str, Any]] = {}
+    for a in raw:
+        try:
+            m = RadixShippingAddress.model_validate(a)
+        except Exception:
+            continue
+        deduped[m.id] = {
+            "id": m.id, "radix_customer_id": m.customer_id, "address_id": m.address_id,
+            "description": m.description, "street": m.street, "streetnumber": m.streetnumber,
+            "zip": m.zip, "city": m.town, "country": m.country,
+            "is_default": m.is_default, "inactive": m.inactive,
+        }
+    rows = list(deduped.values())
+    with insights_engine().begin() as conn:
+        for batch in _batched(rows, _BATCH):
+            conn.execute(_UPSERT_SHIPPING, batch)
+    logger.info("radix_shipping_addresses loaded: %d (for %d customers)", len(rows), len(customer_ids))
+    return len(rows)
+
+
 def load_events(limit: int | None = None, since_days: int | None = None) -> int:
     """Load FleetMgmt printer/SNMP alert events into insights.fleet_events."""
     total = 0
@@ -683,13 +755,15 @@ if __name__ == "__main__":
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
     parser.add_argument("--snmp", action="store_true", help="snapshot-load SNMP predictions")
     parser.add_argument("--customers", action="store_true", help="load Radix customer master (PII-safe)")
+    parser.add_argument("--shipping", action="store_true", help="load Radix delivery addresses per customer")
     parser.add_argument("--events", action="store_true", help="load FleetMgmt alert events (ACCEVENTHISTORY)")
     parser.add_argument("--events-since-days", type=int, default=None,
                         help="bound event load to the last N days (default: full history)")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
-                  or args.contracts or args.costs or args.snmp or args.events or args.customers)
+                  or args.contracts or args.costs or args.snmp or args.events
+                  or args.customers or args.shipping)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -714,6 +788,9 @@ if __name__ == "__main__":
     if args.all or args.customers:
         rc = load_radix_customers()
         logger.info("Radix customers loaded: %d.", rc)
+    if args.all or args.shipping:
+        sh = load_shipping_addresses()
+        logger.info("Radix shipping addresses loaded: %d.", sh)
     if args.all or args.events:
         ev = load_events(since_days=args.events_since_days)
         logger.info("Fleet events loaded: %d events processed.", ev)

@@ -105,6 +105,13 @@ class RadixDataClient:
                   "Searchtext": searchtext, "Inactive": inactive}
         return self._unwrap(await self.get("/api/customer", params))
 
+    async def get_customer_shippingaddresses(
+        self, customer_id: str, *, take: int = 1000, skip: int = 0
+    ) -> list[dict[str, Any]]:
+        """Delivery addresses for a customer (where toner/parts get shipped)."""
+        params = {"CustomerId": customer_id, "Take": take, "Skip": skip}
+        return self._unwrap(await self.get("/api/customer/shippingaddress", params))
+
     # ----------------------------------------------------------------------
     # Devices (serialnumber) — the FleetMgmt bridge
     # ----------------------------------------------------------------------

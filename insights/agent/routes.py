@@ -296,6 +296,33 @@ def r_customer_mismatch(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_customer_device_mismatch", sql))
 
 
+def r_shipping_addresses(args: dict[str, Any]) -> AnswerCard:
+    kunde = (args.get("kunde") or "").strip()
+    if not kunde:
+        sql = (
+            "SELECT kunde, kunde_ort, geraete, lieferadressen "
+            "FROM insights.vw_customer_shipping ORDER BY lieferadressen DESC LIMIT 50"
+        )
+        df = _df(sql)
+        txt = (f"Kunden mit den meisten Radix-Lieferadressen ({len(df)}). Viele Adressen = "
+               "Lieferung muss je Standort sorgfältig zugeordnet werden.")
+        return AnswerCard(text=txt, data=df, citation=_cite("vw_customer_shipping", sql))
+    sql = (
+        "SELECT rc.name AS kunde, s.description AS standort, s.street AS strasse, "
+        "s.streetnumber AS hausnr, s.zip AS plz, s.city AS ort, s.is_default AS standard "
+        "FROM insights.radix_shipping_addresses s "
+        "JOIN insights.radix_customers rc ON rc.radix_customer_id = s.radix_customer_id "
+        "WHERE rc.name ILIKE :q AND NOT COALESCE(s.inactive, FALSE) "
+        "ORDER BY s.is_default DESC NULLS LAST, s.city, s.description LIMIT 200"
+    )
+    df = _df(sql, {"q": f"%{kunde}%"})
+    if df.empty:
+        return AnswerCard(text=f"Keine Lieferadressen zu {kunde} gefunden.",
+                          citation=_cite("radix_shipping_addresses", sql))
+    txt = f"{len(df)} Lieferadresse(n) für {kunde} (Radix) — wohin Toner/Teile geschickt werden."
+    return AnswerCard(text=txt, data=df, citation=_cite("radix_shipping_addresses", sql))
+
+
 def r_problem_devices(args: dict[str, Any]) -> AnswerCard:
     kunde = (args.get("kunde") or "").strip()
     nur_spam = args.get("nur_spam", False)
@@ -425,6 +452,11 @@ REGISTRY: list[Route] = [
                      "description": "abweichung = klarer Unterschied (Standard), teilweise = ähnlich, sonst gleich"},
            "suche": {"type": "string", "description": "optionaler Kunden- oder Seriennummer-Filter"}}, [],
           r_customer_mismatch),
+    Route("lieferadressen",
+          "Lieferadressen eines Kunden aus Radix (wohin Toner/Teile geschickt werden); "
+          "ohne Kunde: Kunden mit den meisten Lieferadressen.",
+          {"kunde": {"type": "string", "description": "Kundenname (optional)"}}, [],
+          r_shipping_addresses),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}
