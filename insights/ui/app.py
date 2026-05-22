@@ -23,5 +23,6 @@ pages = [
     st.Page("views/home.py", title="Übersicht", icon="🏠", default=True),
     st.Page("views/geraeteinventar.py", title="Geräte-Inventar", icon="🖨️"),
     st.Page("views/verbrauchsmaterial.py", title="Verbrauchsmaterial", icon="🧪"),
+    st.Page("views/kosten.py", title="Kosten & Verträge", icon="💶"),
 ]
 st.navigation(pages).run()
