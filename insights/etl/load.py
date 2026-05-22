@@ -29,7 +29,7 @@ from insights.core.db import insights_engine
 from insights.core.logging import get_logger
 from insights.etl import fleetmgmt_extractor, krai_pm_extractor
 from insights.etl.radix import RadixAuthManager, RadixDataClient
-from insights.etl.radix.models import RadixContract
+from insights.etl.radix.models import RadixContract, RadixWorkTime
 
 logger = get_logger(__name__)
 
@@ -438,6 +438,109 @@ def enrich_contracts_from_radix() -> dict[str, int]:
     return {"contracts": len(params), "active_devices": active or 0}
 
 
+_UPSERT_COST = text(
+    """
+    INSERT INTO insights.cost_events (
+        source_id, cost_type, radix_activity_id, radix_ticket_id, radix_customer_id,
+        device_serial, occurred_at, description, article_code, quantity, unit_price,
+        total_eur, duration_minutes, employee_id, invoicing_type, to_billed
+    ) VALUES (
+        :source_id, :cost_type, :radix_activity_id, :radix_ticket_id, :radix_customer_id,
+        :device_serial, :occurred_at, :description, :article_code, :quantity, :unit_price,
+        :total_eur, :duration_minutes, :employee_id, :invoicing_type, :to_billed
+    )
+    ON CONFLICT (source_id, cost_type) DO UPDATE SET
+        quantity         = EXCLUDED.quantity,
+        unit_price       = EXCLUDED.unit_price,
+        total_eur        = EXCLUDED.total_eur,
+        duration_minutes = EXCLUDED.duration_minutes,
+        invoicing_type   = EXCLUDED.invoicing_type,
+        to_billed        = EXCLUDED.to_billed,
+        ingested_at      = now()
+    """
+)
+
+
+async def _pull_costs(customer_limit: int | None) -> tuple[list, list]:
+    """Crawl activities per customer -> spare parts + work times (bounded concurrency)."""
+    auth = RadixAuthManager.from_settings(get_settings())
+    sem = asyncio.Semaphore(15)
+    material: list[tuple[str, dict, dict]] = []
+    labor: list[tuple[str, dict, dict]] = []
+    async with RadixDataClient(auth) as client:
+        customers = await client.get_customers(take=10000)
+        if customer_limit:
+            customers = customers[:customer_limit]
+
+        async def per_activity(customer_id: str, activity: dict) -> None:
+            async with sem:
+                try:
+                    parts = await client.get_activity_spareparts(activity["id"])
+                    times = await client.get_activity_times(activity["id"])
+                except Exception:
+                    return
+            material.extend((customer_id, activity, p) for p in parts)
+            labor.extend((customer_id, activity, t) for t in times)
+
+        async def per_customer(customer: dict) -> None:
+            async with sem:
+                try:
+                    acts = await client.get_activities(customer_id=customer["id"], take=200)
+                except Exception:
+                    return
+            await asyncio.gather(*(per_activity(customer["id"], a) for a in acts))
+
+        await asyncio.gather(*(per_customer(c) for c in customers))
+    return material, labor
+
+
+def crawl_costs(customer_limit: int | None = None) -> dict[str, int]:
+    """Crawl Radix material + labour costs into insights.cost_events (idempotent)."""
+    material, labor = asyncio.run(_pull_costs(customer_limit))
+    rows: dict[tuple[str, str], dict[str, Any]] = {}
+    for customer_id, activity, s in material:
+        sid = s.get("id")
+        if not sid:
+            continue
+        qty = s.get("quantity") or 0
+        price = s.get("price") or 0
+        rows[(sid, "material")] = {
+            "source_id": sid, "cost_type": "material",
+            "radix_activity_id": activity.get("id"), "radix_ticket_id": activity.get("ticketId"),
+            "radix_customer_id": customer_id,
+            "device_serial": s.get("serialnumberNumberManufactorParent"),
+            "occurred_at": _parse_date(s.get("date")),
+            "description": s.get("description"), "article_code": s.get("articleCode"),
+            "quantity": qty, "unit_price": price, "total_eur": round(price * qty, 2),
+            "duration_minutes": None, "employee_id": None,
+            "invoicing_type": s.get("invoicingType"), "to_billed": None,
+        }
+    for customer_id, activity, t in labor:
+        try:
+            m = RadixWorkTime.model_validate(t)
+        except Exception:
+            continue
+        if not m.id:
+            continue
+        rows[(m.id, "labor")] = {
+            "source_id": m.id, "cost_type": "labor",
+            "radix_activity_id": m.activity_id or activity.get("id"), "radix_ticket_id": m.ticket_id,
+            "radix_customer_id": customer_id, "device_serial": None,
+            "occurred_at": _parse_date(t.get("date")),
+            "description": None, "article_code": None, "quantity": None, "unit_price": None,
+            "total_eur": None, "duration_minutes": m.duration_minutes, "employee_id": m.employee_id,
+            "invoicing_type": m.invoicing_type, "to_billed": m.to_billed,
+        }
+    params = list(rows.values())
+    with insights_engine().begin() as conn:
+        for batch in _batched(params, _BATCH):
+            conn.execute(_UPSERT_COST, batch)
+    n_mat = sum(1 for r in params if r["cost_type"] == "material")
+    n_lab = len(params) - n_mat
+    logger.info("cost_events loaded: %d material + %d labour", n_mat, n_lab)
+    return {"material": n_mat, "labor": n_lab}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Insights ETL load")
     parser.add_argument("--radix", action="store_true", help="enrich existing devices from Radix")
@@ -445,9 +548,11 @@ if __name__ == "__main__":
     parser.add_argument("--models", action="store_true", help="seed model_catalog + aliases")
     parser.add_argument("--errorcodes", action="store_true", help="materialise KRAI error codes")
     parser.add_argument("--contracts", action="store_true", help="crawl Radix contracts per device")
+    parser.add_argument("--costs", action="store_true", help="crawl Radix material+labour costs")
+    parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
-    only_flags = args.radix or args.vbm or args.models or args.errorcodes or args.contracts
+    only_flags = args.radix or args.vbm or args.models or args.errorcodes or args.contracts or args.costs
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -466,3 +571,6 @@ if __name__ == "__main__":
     if args.all or args.contracts:
         ctr = enrich_contracts_from_radix()
         logger.info("Contracts loaded: %s", ctr)
+    if args.costs:
+        cst = crawl_costs(customer_limit=args.cost_limit)
+        logger.info("Cost events loaded: %s", cst)
