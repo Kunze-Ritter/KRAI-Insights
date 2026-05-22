@@ -46,6 +46,56 @@ def _cite(view: str, sql: str, trust: float = 1.0) -> dict[str, Any]:
     return {"quelle": view, "sql": sql, "vertrauen": trust, "source_system": "insights"}
 
 
+def _eur(n: float | int) -> str:
+    return f"{round(n):,}".replace(",", ".") + " €"
+
+
+# --- Lagebericht / Garantie-Geld (priority: recoverable money) --------------
+def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
+    sql = "SELECT * FROM insights.vw_lagebericht"
+    df = _df(sql)
+    if df.empty:
+        return AnswerCard(text="Keine Kennzahlen verfügbar.", citation=_cite("vw_lagebericht", sql))
+    r = df.iloc[0]
+    claims = int(r["garantie_claims"] or 0)
+    preis = int(r["toner_preis_median"] or 0)
+    schaetz = claims * preis
+    txt = (
+        "Lagebericht (Stand jetzt):\n"
+        f"• Garantie/Geld: {claims} serial-belegte Garantiefälle (Ø nur {int(r['claim_schnitt_pct'] or 0)} % der "
+        f"Soll-Laufzeit erreicht) → geschätzt {_eur(schaetz)} reklamierbares Material "
+        f"(grobe Schätzung, ~{preis} € je Einheit); zusätzlich {int(r['verhandlung_kandidaten'] or 0)} "
+        "Verhandlungs-Kandidaten als Hebel.\n"
+        f"• Abrechnungsrisiko: {int(r['stille_unter_vertrag'] or 0)} Geräte unter Vertrag melden keine Zähler "
+        "(Abrechnung läuft auf Schätzwerten).\n"
+        f"• Datenqualität: {int(r['kunden_abweichung'] or 0)} Geräte mit abweichender Kundenzuordnung "
+        "(Fehlversand-/Abrechnungsrisiko).\n"
+        f"• Service: {int(r['verbrauch_14d'] or 0)} Verbrauchsmaterialien in 14 Tagen fällig, "
+        f"{int(r['problem_geraete'] or 0)} auffällige Geräte (Sensor-Spam/Störungen).\n"
+        f"• Flotte: {int(r['geraete_live'] or 0)} aktive Geräte."
+    )
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_lagebericht", sql))
+
+
+def r_warranty_overview(args: dict[str, Any]) -> AnswerCard:
+    sql = (
+        "SELECT hersteller, garantiefaelle, claim_schnitt_pct AS schnitt_pct_vom_soll, verhandlung "
+        "FROM insights.vw_warranty_by_manufacturer"
+    )
+    df = _df(sql)
+    lb = _df("SELECT garantie_claims, claim_schnitt_pct, toner_preis_median FROM insights.vw_lagebericht")
+    claims = int(lb.iloc[0]["garantie_claims"] or 0) if not lb.empty else 0
+    preis = int(lb.iloc[0]["toner_preis_median"] or 0) if not lb.empty else 0
+    pct = int(lb.iloc[0]["claim_schnitt_pct"] or 0) if not lb.empty else 0
+    txt = (
+        f"Garantie-Übersicht: {claims} serial-belegte Garantiefälle, im Schnitt nur {pct} % der "
+        f"Soll-Laufzeit erreicht → geschätzt {_eur(claims * preis)} reklamierbares Material "
+        f"(grobe Schätzung, ~{preis} € je Einheit). Verteilung nach Hersteller siehe Tabelle; "
+        "die konkreten, einreichbaren Einzelfälle liefert die Funktion 'garantie_kandidaten'."
+    )
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_warranty_by_manufacturer", sql))
+
+
 # --- Routes -----------------------------------------------------------------
 def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     q = (args.get("suche") or "").strip()
@@ -383,6 +433,15 @@ _GAR_DESC = "Garantiefaelle oder Verhandlungs-Kandidaten (Teile unter Soll-Laufz
 _ART_DESC = "claim = Garantiefall, verhandlung = Kandidat"
 
 REGISTRY: list[Route] = [
+    Route("lagebericht",
+          "Gesamtüberblick / Lagebericht: die wichtigsten Kennzahlen auf einen Blick — "
+          "Garantie-Rückholpotenzial (€), Abrechnungsrisiko, Datenqualität, Service. "
+          "Nutze dies für Fragen wie 'Überblick', 'Was ist wichtig', 'Wo können wir Geld zurückholen'.",
+          {}, [], r_lagebericht),
+    Route("garantie_uebersicht",
+          "Garantie-Auswertung: wie viele reklamierbare Garantiefälle, geschätzter Wert in Euro, "
+          "und Verteilung nach Hersteller (wo die Reklamation lohnt).",
+          {}, [], r_warranty_overview),
     Route("geraet_suchen",
           "Findet ein Gerät/Drucksystem anhand Seriennummer, Radix-ID, Kunde, Modell oder IP-Adresse "
           "(zeigt auch IP/MAC für den Service).",
