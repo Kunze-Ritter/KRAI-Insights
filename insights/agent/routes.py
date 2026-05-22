@@ -178,6 +178,19 @@ def r_vbm_validation(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_vbm_validation", sql))
 
 
+def r_billing_risk(args: dict[str, Any]) -> AnswerCard:
+    kunde = (args.get("kunde") or "").strip()
+    sql = (
+        "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "device_status AS status, telemetry_stale_days AS tage_ohne_meldung, contract_end AS vertrag_bis "
+        "FROM insights.vw_billing_risk WHERE (:c = '' OR customer_name ILIKE :cl) "
+        "ORDER BY telemetry_stale_days DESC NULLS LAST LIMIT 200"
+    )
+    df = _df(sql, {"c": kunde, "cl": f"%{kunde}%"})
+    txt = f"{len(df)} Gerät(e) unter Vertrag ohne aktuelle Meldung (Abrechnung läuft auf Schätz-Zählern)."
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_billing_risk", sql))
+
+
 def r_consumables_due(args: dict[str, Any]) -> AnswerCard:
     tage = int(args.get("tage") or 14)
     kunde = (args.get("kunde") or "").strip()
@@ -248,6 +261,10 @@ REGISTRY: list[Route] = [
           "Aktuelle Restlaufzeiten (Tage/Seiten) aller Materialien/Teile eines Geräts.",
           {"geraet": {"type": "string", "description": "Geräte-Seriennummer oder Radix-ID"}}, ["geraet"],
           r_part_due),
+    Route("abrechnungs_risiko",
+          "Geräte unter Vertrag, die keine Daten mehr melden — Abrechnung auf Schätz-Zählern.",
+          {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
+          r_billing_risk),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}
