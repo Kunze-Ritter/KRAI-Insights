@@ -161,6 +161,7 @@ def r_warranty_candidates(args: dict[str, Any]) -> AnswerCard:
     kind = "negotiation" if kind_in.startswith(("verhand", "negoti")) else "claim"
     sql = (
         "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
+        "device_serial AS seriennummer, radix_device_number AS radix_id, "
         "cartridge_serial AS material_seriennr, colorant AS farbe, age_days AS standzeit_tage, "
         "pages AS gelaufene_seiten, rated AS soll, pct_of_oem AS pct_vom_soll, removed_on AS gewechselt "
         "FROM insights.vw_warranty_assessment WHERE warranty_class = :k "
@@ -236,6 +237,7 @@ def r_cost_for_customer(args: dict[str, Any]) -> AnswerCard:
 def r_expiring_contracts(args: dict[str, Any]) -> AnswerCard:
     sql = (
         "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "radix_device_number AS radix_id, "
         "code AS vertrag_nr, contract_type AS vertragsart, valid_until AS laeuft_aus "
         "FROM insights.vw_contract_renewal_radar ORDER BY valid_until LIMIT 100"
     )
@@ -248,6 +250,7 @@ def r_out_of_contract(args: dict[str, Any]) -> AnswerCard:
     customer = (args.get("kunde") or "").strip()
     sql = (
         "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "radix_device_number AS radix_id, "
         "manufacturer_canonical AS hersteller FROM insights.vw_out_of_contract_devices "
         "WHERE (:c = '' OR customer_name ILIKE :cl) ORDER BY customer_name LIMIT 100"
     )
@@ -266,6 +269,7 @@ def r_vbm_validation(args: dict[str, Any]) -> AnswerCard:
         params["s"] = f"%{suche}%"
     sql = (
         "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "radix_device_number AS radix_id, "
         "colorant AS farbe, marker_name AS material, event_date AS datum, classification AS art, "
         "pages_since_previous AS seiten, validierung "
         f"FROM insights.vw_vbm_validation WHERE {' AND '.join(where)} ORDER BY event_date DESC LIMIT 100"
@@ -280,6 +284,7 @@ def r_billing_risk(args: dict[str, Any]) -> AnswerCard:
     kunde = (args.get("kunde") or "").strip()
     sql = (
         "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "radix_device_number AS radix_id, "
         "device_status AS status, telemetry_stale_days AS tage_ohne_meldung, contract_end AS vertrag_bis "
         "FROM insights.vw_billing_risk WHERE (:c = '' OR customer_name ILIKE :cl) "
         "ORDER BY telemetry_stale_days DESC NULLS LAST LIMIT 200"
@@ -294,6 +299,7 @@ def r_consumables_due(args: dict[str, Any]) -> AnswerCard:
     kunde = (args.get("kunde") or "").strip()
     sql = (
         "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "radix_device_number AS radix_id, "
         "colorant AS farbe, marker_name AS material, snmp_level AS fuellstand, "
         "remaining_days AS rest_tage, empty_date AS leer_am "
         "FROM insights.vw_consumables_due WHERE remaining_days <= :t "
@@ -337,8 +343,8 @@ def r_material_install_check(args: dict[str, Any]) -> AnswerCard:
         where.append("booked_serial ILIKE :s")
         params["s"] = f"%{suche}%"
     sql = (
-        "SELECT booked_serial AS gebucht_auf_seriennr, colorant AS farbe, lieferdatum, "
-        "description AS material, einbau_status "
+        "SELECT booked_serial AS gebucht_auf_seriennr, radix_device_number AS radix_id, "
+        "colorant AS farbe, lieferdatum, description AS material, einbau_status "
         f"FROM insights.vw_material_install_check WHERE {' AND '.join(where)} "
         "ORDER BY lieferdatum DESC LIMIT 100"
     )
@@ -369,7 +375,7 @@ def r_customer_mismatch(args: dict[str, Any]) -> AnswerCard:
         where.append("(fleet_kunde ILIKE :s OR radix_kunde ILIKE :s OR device_serial ILIKE :s)")
         params["s"] = f"%{suche}%"
     sql = (
-        "SELECT device_serial AS seriennummer, model_display AS modell, "
+        "SELECT device_serial AS seriennummer, radix_device_number AS radix_id, model_display AS modell, "
         "fleet_kunde AS kunde_fleet, radix_kunde AS kunde_radix, "
         "device_status AS status, last_report AS letzte_meldung, ip_subnetz, "
         "subnetz_passt_zu AS ip_bestaetigt, ort_gleich "
@@ -428,9 +434,10 @@ def r_part_early_failures(args: dict[str, Any]) -> AnswerCard:
         params["t"] = f"%{teiltyp}%"
     sql = (
         "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
-        "device_serial AS seriennummer, teiltyp, description AS teil, einbau_datum, erneut_getauscht, "
-        "standzeit_tage, standzeit_seiten, oem_nominal_seiten AS oem_soll_seiten, pct_vom_oem, "
-        "basis, diagnose FROM insights.vw_part_early_failures "
+        "device_serial AS seriennummer, radix_device_number AS radix_id, teiltyp, description AS teil, "
+        "einbau_datum, erneut_getauscht, standzeit_tage, standzeit_seiten, "
+        "oem_nominal_seiten AS oem_soll_seiten, pct_vom_oem, basis, diagnose "
+        "FROM insights.vw_part_early_failures "
         f"WHERE {' AND '.join(where)} ORDER BY pct_vom_oem ASC NULLS LAST, standzeit_tage ASC LIMIT 100"
     )
     df = _df(sql, params)
@@ -473,6 +480,7 @@ def r_problem_devices(args: dict[str, Any]) -> AnswerCard:
         params["cl"] = f"%{kunde}%"
     sql = (
         "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "radix_device_number AS radix_id, "
         "events_365d AS alarme_jahr, offene_alarme, verschiedene_codes, einstufung, letzter_alarm "
         f"FROM insights.vw_problem_devices WHERE {' AND '.join(where)} LIMIT 100"
     )
@@ -508,6 +516,7 @@ def r_open_events(args: dict[str, Any]) -> AnswerCard:
     min_tage = int(args.get("min_tage") or 0)
     sql = (
         "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "radix_device_number AS radix_id, "
         "alert_code AS code, bedeutung, offen_tage, offen_seit "
         "FROM insights.vw_open_events_aging WHERE offen_tage >= :mt "
         "AND (:c = '' OR customer_name ILIKE :cl) ORDER BY offen_tage DESC LIMIT 100"

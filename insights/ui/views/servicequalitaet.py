@@ -67,7 +67,7 @@ with tab_dev:
         params["q"] = f"%{such.strip()}%"
     df = frame(
         "SELECT customer_name, customer_city, manufacturer_canonical, model_display, device_serial, "
-        "device_status, events_365d, offene_alarme, verschiedene_codes, einstufung, letzter_alarm "
+        "radix_device_number, device_status, events_365d, offene_alarme, verschiedene_codes, einstufung, letzter_alarm "
         f"FROM insights.vw_problem_devices WHERE {' AND '.join(clauses)} LIMIT 500",
         params,
     )
@@ -75,7 +75,8 @@ with tab_dev:
         df["einstufung"] = df["einstufung"].map(EINSTUFUNG_LABEL).fillna(df["einstufung"])
         df = df.rename(columns={
             "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
-            "model_display": "Modell", "device_serial": "Geräte-Seriennummer", "device_status": "Status",
+            "model_display": "Modell", "device_serial": "Geräte-Seriennummer",
+            "radix_device_number": "Radix-ID", "device_status": "Status",
             "events_365d": "Alarme (365 T)", "offene_alarme": "davon offen",
             "verschiedene_codes": "Verschiedene Codes", "einstufung": "Einstufung", "letzter_alarm": "Letzter Alarm",
         })
@@ -120,14 +121,15 @@ with tab_open:
         params["q"] = f"%{such.strip()}%"
     df = frame(
         "SELECT customer_name, customer_city, manufacturer_canonical, model_display, device_serial, "
-        "device_status, alert_code, bedeutung, severity, offen_seit, offen_tage "
+        "radix_device_number, device_status, alert_code, bedeutung, severity, offen_seit, offen_tage "
         f"FROM insights.vw_open_events_aging WHERE {' AND '.join(clauses)} ORDER BY offen_tage DESC LIMIT 500",
         params,
     )
     if not df.empty:
         df = df.rename(columns={
             "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
-            "model_display": "Modell", "device_serial": "Geräte-Seriennummer", "device_status": "Status",
+            "model_display": "Modell", "device_serial": "Geräte-Seriennummer",
+            "radix_device_number": "Radix-ID", "device_status": "Status",
             "alert_code": "Code", "bedeutung": "Bedeutung", "severity": "Schweregrad",
             "offen_seit": "Offen seit", "offen_tage": "Offen (Tage)",
         })

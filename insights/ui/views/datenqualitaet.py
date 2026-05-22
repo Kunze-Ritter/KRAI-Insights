@@ -95,7 +95,7 @@ with tab_risk:
         params["q"] = f"%{such.strip()}%"
     df = frame(
         "SELECT customer_name, customer_city, manufacturer_canonical, model_display, device_serial, "
-        "device_status, telemetry_stale_days, contract_end "
+        "radix_device_number, device_status, telemetry_stale_days, contract_end "
         f"FROM insights.vw_billing_risk WHERE {' AND '.join(clauses)} "
         "ORDER BY telemetry_stale_days DESC NULLS LAST LIMIT 500",
         params,
@@ -103,7 +103,8 @@ with tab_risk:
     if not df.empty:
         df = df.rename(columns={
             "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
-            "model_display": "Modell", "device_serial": "Geräte-Seriennummer", "device_status": "Status",
+            "model_display": "Modell", "device_serial": "Geräte-Seriennummer",
+            "radix_device_number": "Radix-ID", "device_status": "Status",
             "telemetry_stale_days": "Tage ohne Meldung", "contract_end": "Vertrag bis",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Gerät(e) (max. 500)")
@@ -124,7 +125,7 @@ with tab_recon:
         params["q"] = f"%{such.strip()}%"
     df = frame(
         "SELECT customer_name, customer_city, manufacturer_canonical, model_display, device_serial, "
-        "device_status, contract_active, contract_end, in_radix, einordnung "
+        "radix_device_number, device_status, contract_active, contract_end, in_radix, einordnung "
         f"FROM insights.vw_fleet_reconciliation WHERE {' AND '.join(clauses)} "
         "ORDER BY customer_name LIMIT 1000",
         params,
@@ -135,7 +136,8 @@ with tab_recon:
         df["in_radix"] = df["in_radix"].map({True: "ja", False: "nein"})
         df = df.rename(columns={
             "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
-            "model_display": "Modell", "device_serial": "Geräte-Seriennummer", "device_status": "Status",
+            "model_display": "Modell", "device_serial": "Geräte-Seriennummer",
+            "radix_device_number": "Radix-ID", "device_status": "Status",
             "contract_active": "Vertrag aktiv", "contract_end": "Vertrag bis", "in_radix": "In Radix",
             "einordnung": "Einordnung",
         })
@@ -153,8 +155,8 @@ with tab_vbm:
         clauses.append("(customer_name ILIKE :q OR device_serial ILIKE :q)")
         params["q"] = f"%{such.strip()}%"
     df = frame(
-        "SELECT customer_name, manufacturer_canonical, model_display, device_serial, colorant, marker_name, "
-        "cartridge_serial, event_date, pages_since_previous, validierung "
+        "SELECT customer_name, manufacturer_canonical, model_display, device_serial, radix_device_number, "
+        "colorant, marker_name, cartridge_serial, event_date, pages_since_previous, validierung "
         f"FROM insights.vw_vbm_validation WHERE {' AND '.join(clauses)} ORDER BY event_date DESC LIMIT 500",
         params,
     )
@@ -162,7 +164,8 @@ with tab_vbm:
         df["validierung"] = df["validierung"].map(VALID_LABEL).fillna(df["validierung"])
         df = df.rename(columns={
             "customer_name": "Kunde", "manufacturer_canonical": "Hersteller", "model_display": "Modell",
-            "device_serial": "Geräte-Seriennummer", "colorant": "Farbe", "marker_name": "Material",
+            "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",
+            "colorant": "Farbe", "marker_name": "Material",
             "cartridge_serial": "Material-Seriennummer", "event_date": "Datum",
             "pages_since_previous": "Gelaufene Seiten", "validierung": "Validierung",
         })
@@ -179,7 +182,7 @@ with tab_einbau:
         "Status", options=optionen, default=["woanders_eingebaut"], format_func=lambda v: EINBAU_LABEL.get(v, v)
     )
     df = frame(
-        "SELECT booked_serial, colorant, lieferdatum, description, einbau_status "
+        "SELECT booked_serial, radix_device_number, colorant, lieferdatum, description, einbau_status "
         "FROM insights.vw_material_install_check WHERE einbau_status = ANY(:sel) "
         "ORDER BY lieferdatum DESC LIMIT 500",
         {"sel": auswahl or optionen},
@@ -187,7 +190,8 @@ with tab_einbau:
     if not df.empty:
         df["einbau_status"] = df["einbau_status"].map(EINBAU_LABEL).fillna(df["einbau_status"])
         df = df.rename(columns={
-            "booked_serial": "Gebucht auf Seriennummer", "colorant": "Farbe", "lieferdatum": "Lieferdatum",
+            "booked_serial": "Gebucht auf Seriennummer", "radix_device_number": "Radix-ID",
+            "colorant": "Farbe", "lieferdatum": "Lieferdatum",
             "description": "Material", "einbau_status": "Einbau-Status",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Lieferung(en) (max. 500)")
@@ -212,7 +216,7 @@ with tab_kunde:
         clauses.append("(fleet_kunde ILIKE :q OR radix_kunde ILIKE :q OR device_serial ILIKE :q)")
         params["q"] = f"%{such.strip()}%"
     df = frame(
-        "SELECT device_serial, model_display, fleet_kunde, fleet_ort, radix_kunde, radix_ort, "
+        "SELECT device_serial, radix_device_number, model_display, fleet_kunde, fleet_ort, radix_kunde, radix_ort, "
         "device_status, last_report, printer_ip, ip_subnetz, subnetz_passt_zu, ort_gleich "
         f"FROM insights.vw_customer_device_mismatch WHERE {' AND '.join(clauses)} "
         "ORDER BY (subnetz_passt_zu IN ('fleet','radix')) DESC, (device_status='live') DESC, device_serial LIMIT 500",
@@ -225,7 +229,7 @@ with tab_kunde:
         ).fillna(df["device_status"])
         df["subnetz_passt_zu"] = df["subnetz_passt_zu"].map(IP_LABEL).fillna(df["subnetz_passt_zu"])
         df = df.rename(columns={
-            "device_serial": "Geräte-Seriennummer", "model_display": "Modell",
+            "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID", "model_display": "Modell",
             "fleet_kunde": "Kunde (FleetMgmt)", "fleet_ort": "Ort (FleetMgmt)",
             "radix_kunde": "Kunde (Radix)", "radix_ort": "Ort (Radix)",
             "device_status": "Status", "last_report": "Letzte Meldung", "printer_ip": "IP-Adresse",

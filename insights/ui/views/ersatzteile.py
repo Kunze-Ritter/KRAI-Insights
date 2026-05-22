@@ -60,8 +60,8 @@ with tab_fa:
         clauses.append("customer_name ILIKE :q")
         params["q"] = f"%{such.strip()}%"
     df = frame(
-        "SELECT customer_name, manufacturer_canonical, model_display, device_serial, teiltyp, "
-        "description, basis, standzeit_tage, standzeit_seiten, oem_nominal_seiten, pct_vom_oem, "
+        "SELECT customer_name, manufacturer_canonical, model_display, device_serial, radix_device_number, "
+        "teiltyp, description, basis, standzeit_tage, standzeit_seiten, oem_nominal_seiten, pct_vom_oem, "
         "einbau_datum, erneut_getauscht, diagnose "
         f"FROM insights.vw_part_early_failures WHERE {' AND '.join(clauses)} "
         "ORDER BY pct_vom_oem ASC NULLS LAST, standzeit_tage ASC LIMIT 500",
@@ -70,7 +70,8 @@ with tab_fa:
     if not df.empty:
         df = df.rename(columns={
             "customer_name": "Kunde", "manufacturer_canonical": "Hersteller", "model_display": "Modell",
-            "device_serial": "Geräte-Seriennummer", "teiltyp": "Teiltyp", "description": "Teil",
+            "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",
+            "teiltyp": "Teiltyp", "description": "Teil",
             "basis": "Bewertung", "standzeit_tage": "Standzeit (Tage)", "standzeit_seiten": "Standzeit (Seiten)",
             "oem_nominal_seiten": "Hersteller-Soll (Seiten)", "pct_vom_oem": "% vom Soll",
             "einbau_datum": "Eingebaut", "erneut_getauscht": "Erneut getauscht", "diagnose": "Diagnose/Symptom",

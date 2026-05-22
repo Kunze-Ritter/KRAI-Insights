@@ -132,7 +132,8 @@ with st.expander("🔄 Falschzuordnungen / Datenfehler zum Korrigieren"):
     st.caption("Details + Listen: Seite **Datenqualität & Abgleich** (Kunden-Abgleich, Material-Einbau, "
                "Teilewechsel-Validierung). Beispiele — abweichende Kundenzuordnung:")
     bsp = frame(
-        "SELECT device_serial AS seriennummer, fleet_kunde AS kunde_fleet, radix_kunde AS kunde_radix, "
+        "SELECT device_serial AS seriennummer, radix_device_number AS radix_id, "
+        "fleet_kunde AS kunde_fleet, radix_kunde AS kunde_radix, "
         "subnetz_passt_zu AS ip_beleg FROM insights.vw_customer_device_mismatch "
         "WHERE abgleich='abweichung' AND subnetz_passt_zu IN ('fleet','radix') LIMIT 10"
     )
