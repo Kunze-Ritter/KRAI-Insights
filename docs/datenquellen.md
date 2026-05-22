@@ -27,7 +27,7 @@ Nacht; Einzelgeräte-Werte lassen sich bei Bedarf live nachladen.
   Konkret werden diese Felder bei Radix-Kunden und -Lieferadressen (enthalten im
   Rohpayload) durch die Lade-Modelle **verworfen** und erreichen die DB nie.
 - **Erlaubt:** Firmenname + Kundennummer, Standort (Straße/PLZ/Ort).
-- **Mitarbeiter/Techniker:** nur pseudonyme `employee_id`, kein Name.
+- **Mitarbeiter/Techniker:** in Kennzahlen/Kosten nur pseudonyme `employee_id`. **Ausnahme (Entscheidung):** in den **Ticket-Diagnosetexten** (Service-Historie) bleiben die Namen/Kürzel der **eigenen Techniker** erhalten — als Wissensbasis („wer hat das schon mal gelöst"). **Kunden-Ansprechpartner** und E-Mails in diesen Texten werden beim Laden pseudonymisiert (→ `[Kontakt]` / `[email]`, best-effort über deutschen Servicetext; ein bloßer Nachname ohne Anrede kann durchrutschen). Der fachliche Inhalt bleibt vollständig.
 - **Drucker-IP/MAC/Hostname:** bewusst **behalten** — das ist Geräte-Infrastruktur
   (für den Service nötig, z. B. Neuinstallation wenn die Kunden-IT nicht erreichbar
   ist), kein Personenbezug. Eine Personen-IP (`ClientIPAddress`) bleibt ausgeschlossen.

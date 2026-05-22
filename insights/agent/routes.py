@@ -173,6 +173,33 @@ def r_warranty_candidates(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_warranty_assessment", sql))
 
 
+def r_ticket_notes(args: dict[str, Any]) -> AnswerCard:
+    geraet = (args.get("geraet") or "").strip()
+    suche = (args.get("suche") or "").strip()
+    where = ["(problem_text IS NOT NULL OR verlauf_text IS NOT NULL)"]
+    params: dict[str, Any] = {}
+    if geraet:
+        where.append("device_serial ILIKE :g")
+        params["g"] = f"%{geraet}%"
+    if suche:
+        where.append("(problem_text ILIKE :s OR verlauf_text ILIKE :s OR technik_text ILIKE :s "
+                      "OR model_display ILIKE :s)")
+        params["s"] = f"%{suche}%"
+    sql = (
+        "SELECT activity_date AS datum, model_display AS modell, device_serial AS seriennummer, "
+        "state AS status, problem_text AS problem, verlauf_text AS verlauf "
+        f"FROM insights.vw_ticket_notes WHERE {' AND '.join(where)} "
+        "ORDER BY activity_date DESC NULLS LAST LIMIT 30"
+    )
+    df = _df(sql, params)
+    if df.empty:
+        return AnswerCard(text="Keine passenden Ticket-Notizen gefunden.",
+                          citation=_cite("vw_ticket_notes", sql))
+    txt = (f"{len(df)} Ticket-Notiz(en) gefunden (Diagnose/Lösung aus der Service-Historie; "
+           "Kunden-Kontaktnamen sind pseudonymisiert, Techniker-Kürzel erhalten).")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_ticket_notes", sql))
+
+
 def r_error_code(args: dict[str, Any]) -> AnswerCard:
     code = (args.get("code") or "").strip()
     sql = (
@@ -527,6 +554,12 @@ REGISTRY: list[Route] = [
     Route("fehlercode", "Bedeutung und Technik-Lösung zu einem Service-Menü-Fehlercode.",
           {"code": {"type": "string", "description": "Fehlercode, z. B. C-D9-01 oder 200.03"}}, ["code"],
           r_error_code),
+    Route("ticket_historie",
+          "Durchsucht die Service-/Ticket-Historie (Diagnose, was wurde gemacht, was hat es gelöst) — "
+          "nach Gerät oder Stichwort. Wissensbasis: wie wurde ein Problem schon mal gelöst.",
+          {"geraet": {"type": "string", "description": "Geräte-Seriennummer (optional)"},
+           "suche": {"type": "string", "description": "Stichwort, z. B. Fehlercode, Bauteil, Symptom, Modell"}},
+          [], r_ticket_notes),
     Route("kosten_kunde", "Material- und Arbeitskosten je Kunde (berechenbar vs. Vertrag).",
           {"kunde": {"type": "string", "description": "Kundenname"}}, ["kunde"],
           r_cost_for_customer),

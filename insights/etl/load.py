@@ -27,6 +27,7 @@ from sqlalchemy import text
 from insights.core.config import get_settings
 from insights.core.db import insights_engine
 from insights.core.logging import get_logger
+from insights.core.pii import pseudonymize_contacts
 from insights.etl import fleetmgmt_extractor, krai_pm_extractor
 from insights.etl.radix import RadixAuthManager, RadixDataClient
 from insights.etl.radix.models import RadixContract, RadixCustomer, RadixShippingAddress, RadixWorkTime
@@ -492,6 +493,74 @@ def load_counter_monthly() -> int:
     return total
 
 
+_UPSERT_NOTE = text(
+    """
+    INSERT INTO insights.activity_notes (
+        radix_activity_id, radix_ticket_id, radix_customer_id, activity_date,
+        activity_type, state, problem_text, technik_text, verlauf_text
+    ) VALUES (
+        :radix_activity_id, :radix_ticket_id, :radix_customer_id, :activity_date,
+        :activity_type, :state, :problem_text, :technik_text, :verlauf_text
+    )
+    ON CONFLICT (radix_activity_id) DO UPDATE SET
+        state        = EXCLUDED.state,
+        problem_text = EXCLUDED.problem_text,
+        technik_text = EXCLUDED.technik_text,
+        verlauf_text = EXCLUDED.verlauf_text,
+        ingested_at  = now()
+    """
+)
+
+
+async def _pull_ticket_notes(customer_limit: int | None) -> list[tuple[str, dict[str, Any]]]:
+    """Crawl activities per customer (bounded concurrency) — one call per customer."""
+    auth = RadixAuthManager.from_settings(get_settings())
+    sem = asyncio.Semaphore(15)
+    rows: list[tuple[str, dict[str, Any]]] = []
+    async with RadixDataClient(auth) as client:
+        customers = await client.get_customers(take=10000)
+        if customer_limit:
+            customers = customers[:customer_limit]
+
+        async def per_customer(cust: dict[str, Any]) -> None:
+            async with sem:
+                try:
+                    acts = await client.get_activities(customer_id=cust["id"], take=200)
+                except Exception:
+                    return
+            rows.extend((cust["id"], a) for a in acts)
+
+        await asyncio.gather(*(per_customer(c) for c in customers))
+    return rows
+
+
+def crawl_ticket_notes(customer_limit: int | None = None) -> int:
+    """Crawl Radix activity diagnostic text into activity_notes (contacts pseudonymised)."""
+    raw = asyncio.run(_pull_ticket_notes(customer_limit))
+    deduped: dict[str, dict[str, Any]] = {}
+    for cid, a in raw:
+        aid = a.get("id")
+        if not aid:
+            continue
+        deduped[aid] = {
+            "radix_activity_id": aid,
+            "radix_ticket_id": a.get("ticketId"),
+            "radix_customer_id": cid,
+            "activity_date": _parse_date(a.get("date")),
+            "activity_type": a.get("activityType") or a.get("activityTypeType"),
+            "state": a.get("stateDescription") or a.get("state"),
+            "problem_text": pseudonymize_contacts(a.get("ticketDescription")),
+            "technik_text": pseudonymize_contacts(a.get("technicalDescription")),
+            "verlauf_text": pseudonymize_contacts(a.get("customerDescription")),
+        }
+    params = list(deduped.values())
+    with insights_engine().begin() as conn:
+        for batch in _batched(params, _BATCH):
+            conn.execute(_UPSERT_NOTE, batch)
+    logger.info("activity_notes loaded: %d (contacts pseudonymised)", len(params))
+    return len(params)
+
+
 def load_events(limit: int | None = None, since_days: int | None = None) -> int:
     """Load FleetMgmt printer/SNMP alert events into insights.fleet_events."""
     total = 0
@@ -776,6 +845,8 @@ if __name__ == "__main__":
     parser.add_argument("--contracts", action="store_true", help="crawl Radix contracts per device")
     parser.add_argument("--costs", action="store_true", help="crawl Radix material+labour costs")
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
+    parser.add_argument("--tickets", action="store_true", help="crawl Radix activity diagnostic text (pseudonymised)")
+    parser.add_argument("--ticket-limit", type=int, default=None, help="limit ticket-notes crawl to N customers")
     parser.add_argument("--snmp", action="store_true", help="snapshot-load SNMP predictions")
     parser.add_argument("--customers", action="store_true", help="load Radix customer master (PII-safe)")
     parser.add_argument("--shipping", action="store_true", help="load Radix delivery addresses per customer")
@@ -787,7 +858,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
                   or args.contracts or args.costs or args.snmp or args.events
-                  or args.customers or args.shipping or args.counters)
+                  or args.customers or args.shipping or args.counters or args.tickets)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -824,3 +895,6 @@ if __name__ == "__main__":
     if args.costs:
         cst = crawl_costs(customer_limit=args.cost_limit)
         logger.info("Cost events loaded: %s", cst)
+    if args.tickets:
+        tn = crawl_ticket_notes(customer_limit=args.ticket_limit)
+        logger.info("Ticket notes loaded: %d", tn)

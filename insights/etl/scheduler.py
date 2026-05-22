@@ -61,6 +61,7 @@ def weekly_refresh() -> None:
     _run_step("contracts", load.enrich_contracts_from_radix)
     _run_step("shipping_addresses", load.load_shipping_addresses)
     _run_step("costs", load.crawl_costs)
+    _run_step("ticket_notes", load.crawl_ticket_notes)
     logger.info("=== weekly refresh DONE ===")
 
 
