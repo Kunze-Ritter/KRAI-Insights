@@ -126,6 +126,19 @@ einen Monatswert) — aus einer tagesgenauen Zähler-Zeitleiste je Gerät
 gelaufene Seiten. Beispiele (Median): KM C754e Trommel ~200.000 Seiten, C458
 ~117.000, C650i ~95.000, C450i ~80.000.
 
+**Hersteller-Soll für Ersatzteile (OEM-Nominal):** Die vom Hersteller angegebenen
+Soll-Laufzeiten je Teil (Trommel, Fixiereinheit, Transferband, Walzen …) liegen in
+der KRAI-Datenbank (`krai_pm.part_lifetimes`, aus einer Konica-Minolta-Excel,
+`source=km_excel_v1.18`) und werden nach `insights.part_lifetime_oem` gespiegelt
+(126 Werte, aktuell **nur Konica Minolta**: z. B. Trommel 180–300k, Fixiereinheit
+540–840k, Transferband 360k–1,2M Seiten). Damit lässt sich die **reale** Standzeit
+gegen das **OEM-Soll** stellen (Sicht `vw_part_oem_comparison`), statt nur die
+1-Jahres-Heuristik zu nutzen. **Vorläufig:** der Median-Vergleich je Modell ist noch
+grob (gemischt aus Früh- und Normalausfällen; Zuordnung real-Teil → exakte
+OEM-Teilenummer statt nur Kategorie steht aus). Sauberer ist der Vergleich pro
+Einzel-Tausch (gelaufene Seiten < X % des OEM-Soll = Frühausfall) — nächster Schritt.
+HP/Lexmark bräuchten ihre eigene Soll-Liste (Excel) analog.
+
 **Grenzen / To-do:**
 - **Abdeckung ~26 % der Ersatzteil-Geräte:** von ~4.700 Geräten mit Teile-Einbauten
   sind ~2.450 per Seriennummer mit FleetMgmt verknüpft, und nur ~1.250 haben

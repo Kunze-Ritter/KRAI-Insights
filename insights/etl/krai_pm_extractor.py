@@ -54,6 +54,34 @@ def fetch_error_codes(limit: int | None = None) -> Iterator[dict[str, Any]]:
             yield rec
 
 
+_PART_LIFETIMES_SQL = """
+SELECT
+    m.name                     AS manufacturer,
+    pl.part_category,
+    pl.part_number,
+    pl.nominal_lifetime_pages,
+    pl.color_channel,
+    pl.metadata->>'model_family' AS model_family,
+    pl.source
+FROM krai_pm.part_lifetimes pl
+LEFT JOIN krai_core.manufacturers m ON m.id = pl.manufacturer_id
+WHERE pl.nominal_lifetime_pages IS NOT NULL
+"""
+
+
+def fetch_part_lifetimes(limit: int | None = None) -> Iterator[dict[str, Any]]:
+    """Yield OEM nominal part lifetimes (pages) from krai_pm.part_lifetimes (read-only).
+
+    These are manufacturer-rated lifetimes for toner AND spare parts (drum, fuser,
+    transfer belt, rollers, …) — currently Konica Minolta (imported from a KM Excel).
+    The basis for OEM-Soll vs. real spare-part lifetime (like toner yield).
+    """
+    sql = _PART_LIFETIMES_SQL + (" LIMIT :lim" if limit else "")
+    with krai_pg_engine().connect() as conn:
+        for row in conn.execute(text(sql), {"lim": limit} if limit else {}).mappings():
+            yield dict(row)
+
+
 def fetch_part_warranty_events(limit: int | None = None) -> Iterator[dict[str, Any]]:
     """Yield rows from krai_pm.part_warranty_events (read-only).
 

@@ -601,6 +601,31 @@ _UPSERT_ERRORCODE = text(
 )
 
 
+_INSERT_PART_LIFETIME = text(
+    """
+    INSERT INTO insights.part_lifetime_oem (
+        manufacturer, part_category, part_number, nominal_lifetime_pages,
+        color_channel, model_family, source
+    ) VALUES (
+        :manufacturer, :part_category, :part_number, :nominal_lifetime_pages,
+        :color_channel, :model_family, :source
+    )
+    """
+)
+
+
+def load_part_lifetimes() -> int:
+    """Materialise KRAI OEM part lifetimes (krai_pm.part_lifetimes) into insights."""
+    total = 0
+    with insights_engine().begin() as conn:
+        conn.exec_driver_sql("TRUNCATE insights.part_lifetime_oem")
+        for batch in _batched(krai_pm_extractor.fetch_part_lifetimes(), _BATCH):
+            conn.execute(_INSERT_PART_LIFETIME, list(batch))
+            total += len(batch)
+    logger.info("part_lifetime_oem loaded: %d OEM lifetimes", total)
+    return total
+
+
 def load_error_codes(limit: int | None = None) -> int:
     """Materialise krai_intelligence error codes into insights.error_code_ref."""
     total = 0
@@ -844,6 +869,7 @@ if __name__ == "__main__":
     parser.add_argument("--vbm", action="store_true", help="load VBM lifecycle events (ACCMARKERREFILL)")
     parser.add_argument("--models", action="store_true", help="seed model_catalog + aliases")
     parser.add_argument("--errorcodes", action="store_true", help="materialise KRAI error codes")
+    parser.add_argument("--partlifetimes", action="store_true", help="materialise KRAI OEM part lifetimes")
     parser.add_argument("--contracts", action="store_true", help="crawl Radix contracts per device")
     parser.add_argument("--costs", action="store_true", help="crawl Radix material+labour costs")
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
@@ -860,7 +886,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
                   or args.contracts or args.costs or args.snmp or args.events
-                  or args.customers or args.shipping or args.counters or args.tickets)
+                  or args.customers or args.shipping or args.counters or args.tickets
+                  or args.partlifetimes)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -879,6 +906,9 @@ if __name__ == "__main__":
     if args.all or args.errorcodes:
         e = load_error_codes()
         logger.info("Error-code reference loaded: %d codes.", e)
+    if args.all or args.partlifetimes:
+        pl = load_part_lifetimes()
+        logger.info("OEM part lifetimes loaded: %d.", pl)
     if args.all or args.contracts:
         ctr = enrich_contracts_from_radix()
         logger.info("Contracts loaded: %s", ctr)
