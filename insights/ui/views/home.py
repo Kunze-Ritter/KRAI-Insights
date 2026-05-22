@@ -82,7 +82,9 @@ with st.expander("💡 Woher die Ersparnis kommt — nach Material"):
     mat = frame("SELECT material, art, garantiefaelle, restwert_summe, verhandlung "
                 "FROM insights.vw_warranty_by_material")
     if not mat.empty:
-        mat["geschaetzt_eur"] = (mat["restwert_summe"].fillna(0) * preis).round().astype(int)
+        mat["geschaetzt_eur"] = (
+            pd.to_numeric(mat["restwert_summe"], errors="coerce").fillna(0) * preis
+        ).round().astype(int)
         mat = mat.rename(columns={
             "material": "Material", "art": "Art", "garantiefaelle": "Garantiefälle",
             "restwert_summe": "Restwert-Summe", "verhandlung": "Verhandlung",
