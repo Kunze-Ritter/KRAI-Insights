@@ -278,15 +278,17 @@ def r_customer_mismatch(args: dict[str, Any]) -> AnswerCard:
         params["s"] = f"%{suche}%"
     sql = (
         "SELECT device_serial AS seriennummer, model_display AS modell, "
-        "fleet_kunde AS kunde_fleet, fleet_ort AS ort_fleet, radix_kunde AS kunde_radix, "
-        "radix_ort AS ort_radix, ort_gleich "
+        "fleet_kunde AS kunde_fleet, radix_kunde AS kunde_radix, "
+        "device_status AS status, last_report AS letzte_meldung, ip_subnetz, "
+        "subnetz_passt_zu AS ip_bestaetigt, ort_gleich "
         f"FROM insights.vw_customer_device_mismatch WHERE {' AND '.join(where)} "
-        "ORDER BY ort_gleich ASC, seriennummer LIMIT 200"
+        "ORDER BY (subnetz_passt_zu IN ('fleet','radix')) DESC, (device_status='live') DESC, seriennummer LIMIT 200"
     )
     df = _df(sql, params)
     if stufe == "abweichung":
         txt = (f"{len(df)} Gerät(e), bei denen der Kunde in FleetMgmt und Radix nicht übereinstimmt "
-               "(anderer Kunde/Standort → Risiko für Toner-Fehlversand und Falschabrechnung, bitte prüfen).")
+               "(Risiko für Toner-Fehlversand/Falschabrechnung). Spalte ip_bestaetigt zeigt, welches System "
+               "die aktuelle IP des Geräts stützt: fleet, radix oder beide/unklar — fleet/radix ist eindeutig.")
     elif stufe == "teilweise":
         txt = f"{len(df)} Gerät(e) mit ähnlichem, aber nicht identischem Kundennamen (wahrscheinlich gleich)."
     else:

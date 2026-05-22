@@ -27,6 +27,13 @@ ABGLEICH_LABEL = {
     "teilweise": "Ähnlich (wahrscheinlich gleich)",
     "uebereinstimmung": "Übereinstimmung",
 }
+IP_LABEL = {
+    "fleet": "IP bestätigt FleetMgmt",
+    "radix": "IP bestätigt Radix",
+    "beide": "gemeinsames Subnetz (nicht eindeutig)",
+    "unklar": "kein Subnetz-Treffer",
+    "kein_ip": "keine IP",
+}
 EINORDNUNG_LABEL = {
     "aktiv_unter_vertrag": "Aktiv, unter Vertrag",
     "aktiv_ohne_vertrag": "Aktiv, ohne Vertrag",
@@ -193,6 +200,9 @@ with tab_kunde:
         "Stufe", options=list(ABGLEICH_LABEL.keys()), index=0, horizontal=True,
         format_func=lambda v: ABGLEICH_LABEL.get(v, v),
     )
+    st.caption("Tipp: Bei „Abweichung\" zeigt die Spalte **IP-Beleg**, welches System die aktuelle "
+               "Geräte-IP stützt — ein Gerät im Subnetz eines Kunden steht physisch dort. "
+               "„IP bestätigt …\" ist eindeutig; das andere System sollte korrigiert werden.")
     such = st.text_input("Filter — Kunde oder Seriennummer (optional)", "", key="kunde_q")
     clauses = ["abgleich = :st"]
     params = {"st": stufe}
@@ -200,17 +210,24 @@ with tab_kunde:
         clauses.append("(fleet_kunde ILIKE :q OR radix_kunde ILIKE :q OR device_serial ILIKE :q)")
         params["q"] = f"%{such.strip()}%"
     df = frame(
-        "SELECT device_serial, model_display, fleet_kunde, fleet_ort, radix_kunde, radix_ort, ort_gleich "
+        "SELECT device_serial, model_display, fleet_kunde, fleet_ort, radix_kunde, radix_ort, "
+        "device_status, last_report, printer_ip, ip_subnetz, subnetz_passt_zu, ort_gleich "
         f"FROM insights.vw_customer_device_mismatch WHERE {' AND '.join(clauses)} "
-        "ORDER BY ort_gleich ASC, device_serial LIMIT 500",
+        "ORDER BY (subnetz_passt_zu IN ('fleet','radix')) DESC, (device_status='live') DESC, device_serial LIMIT 500",
         params,
     )
     if not df.empty:
         df["ort_gleich"] = df["ort_gleich"].map({True: "ja", False: "nein"})
+        df["device_status"] = df["device_status"].map(
+            {"live": "Aktiv", "silent": "Still", "never_reported": "Nie gemeldet"}
+        ).fillna(df["device_status"])
+        df["subnetz_passt_zu"] = df["subnetz_passt_zu"].map(IP_LABEL).fillna(df["subnetz_passt_zu"])
         df = df.rename(columns={
             "device_serial": "Geräte-Seriennummer", "model_display": "Modell",
             "fleet_kunde": "Kunde (FleetMgmt)", "fleet_ort": "Ort (FleetMgmt)",
-            "radix_kunde": "Kunde (Radix)", "radix_ort": "Ort (Radix)", "ort_gleich": "Ort gleich",
+            "radix_kunde": "Kunde (Radix)", "radix_ort": "Ort (Radix)",
+            "device_status": "Status", "last_report": "Letzte Meldung", "printer_ip": "IP-Adresse",
+            "ip_subnetz": "Subnetz", "subnetz_passt_zu": "IP-Beleg", "ort_gleich": "Ort gleich",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Gerät(e) (max. 500)")
     st.dataframe(df, width="stretch", hide_index=True)
