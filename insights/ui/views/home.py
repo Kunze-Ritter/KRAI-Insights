@@ -75,20 +75,19 @@ st.divider()
 
 # --- Service & Datenqualität ------------------------------------------------
 st.subheader("🛠️ Service & Datenqualität")
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Still & unter Vertrag", _de(int(k.get("stille_unter_vertrag") or 0)),
+s1, s2, s3, s4, s5 = st.columns(5)
+s1.metric("Ersatzteil-Frühausfälle", _de(int(k.get("ersatzteil_fruehausfaelle") or 0)),
+          help="Ersatzteile, die zu früh ausfielen (unter Hersteller-Soll bzw. innerhalb 1 Jahr erneut "
+               "getauscht) → Reklamation/Geld zurück. Seite: Ersatzteile & Standzeit.")
+s2.metric("Still & unter Vertrag", _de(int(k.get("stille_unter_vertrag") or 0)),
           help="Geräte unter Vertrag, die keine Zähler mehr melden → Abrechnung läuft auf Schätzwerten. "
                "Seite: Datenqualität → Abrechnungs-Risiko.")
-c2.metric("Kundenzuordnung prüfen", _de(int(k.get("kunden_abweichung") or 0)),
+s3.metric("Kundenzuordnung prüfen", _de(int(k.get("kunden_abweichung") or 0)),
           help="Gerät hat in FleetMgmt und Radix verschiedene Kunden → Toner-Fehlversand-Risiko. "
                "Seite: Datenqualität → Kunden-Abgleich.")
-c3.metric("Verbrauch in 14 Tagen fällig", _de(int(k.get("verbrauch_14d") or 0)),
+s4.metric("Verbrauch in 14 Tagen fällig", _de(int(k.get("verbrauch_14d") or 0)),
           help="Toner/Teile, die bald leer sind → Liefer-/Tourenplanung. Seite: Verbrauchsmaterial.")
-c4.metric("Ersatzteil-Frühausfälle", _de(int(k.get("ersatzteil_fruehausfaelle") or 0)),
-          help="Ersatzteile, die innerhalb der ~1-Jahres-Garantie erneut getauscht wurden "
-               "(Reklamation/Geld zurück). Seite: Ersatzteile & Standzeit.")
-c5 = st.columns(4)[0]
-c5.metric("Auffällige Geräte", _de(int(k.get("problem_geraete") or 0)),
+s5.metric("Auffällige Geräte", _de(int(k.get("problem_geraete") or 0)),
           help="Sehr viele Alarme (defekte Sensoren / wiederkehrende Störungen). Seite: Service-Qualität.")
 st.caption(f"📖 Methodik: [Datenqualität & Abgleich]({doc('datenqualitaet.md')}) · "
            f"[Ersatzteile/Garantie]({doc('garantie.md', '6-ersatzteile-nicht-nur-toner')}) · "
