@@ -11,8 +11,11 @@ Der vollständige Roadmap-/Phasenplan liegt separat: `C:\Users\haast\.claude\pla
 
 ## Offene Entscheidungen (warten auf Input)
 
-- [ ] **Radix-Vertragsdaten importieren?** import / minimal (nur Laufzeit+Art, ohne interne Nr.) / nur live. Enthält keine Preise/PII, aber interne Geschäftsinfo. Gated für Renewal-/Abrechnungs-/Profitabilitäts-Routen.
-- [ ] **Klickpreise (Erlösseite) liefern.** In den Daten nicht vorhanden (`ACCCONTRACTS.PageCharge*` 100 % leer, Radix keine, `ACCMARKERREFILL.ClickCost` leer). Quelle/Granularität klären (pro Vertragstyp vs. pro Vertrag) → `config/contract_pricing.yaml`. Ohne sie keine Margen-/Profitabilitäts-Rechnung.
+- [x] **Radix-Vertragsdaten importieren?** ✅ importiert (11.244 Verträge, Renewal-Radar, Out-of-Contract).
+- [ ] **Profitabilität — auf HOLD bis nach dem Urlaub.** Erlösseite fehlt in allen Systemen. Nach Urlaub auszufüllen:
+  - `config/contract_pricing.yaml` (← `*.example.yaml`): **Klickpreise** S/W + Farbe (je Vertragstyp; ihr habt unterschiedliche).
+  - `config/business_rules.yaml` (← `*.example.yaml`): **Arbeits-Stundensatz/-sätze** — Radix liefert nur Minuten, keinen €-Betrag, und keine Rechnungs-/Satz-Route → nicht aus Radix ableitbar, muss von euch kommen.
+  - Danach: `profitability_snapshots` (Erlös − Material − Arbeit + Garantie-Rückhol-Wert).
 
 ## Feature-Wünsche / Merker
 

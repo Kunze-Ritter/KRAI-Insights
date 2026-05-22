@@ -1,0 +1,25 @@
+# Click prices (revenue side) for profitability.
+# These are NOT available in FleetMgmt or Radix (ACCCONTRACTS charge columns are
+# empty), so they must be provided here. Copy to `contract_pricing.yaml` and fill
+# in. The real file is gitignored (commercial data).
+#
+# Prices are EUR per page (click). Define defaults + per contract type; optionally
+# override per individual contract code.
+
+defaults:
+  mono_eur_per_page: 0.0       # FILL IN, e.g. 0.009
+  color_eur_per_page: 0.0      # FILL IN, e.g. 0.059
+  free_pages_mono: 0
+  free_pages_color: 0
+
+# Per contract type (matches device_contracts.contract_type), e.g.:
+by_contract_type: {}
+  # "Fremdmiete Full Service":
+  #   mono_eur_per_page: 0.009
+  #   color_eur_per_page: 0.059
+  #   free_pages_mono: 0
+  #   free_pages_color: 0
+
+# Per individual contract code (overrides the type), e.g.:
+by_contract_code: {}
+  # "KVE - 2023 - 7669": { mono_eur_per_page: 0.008, color_eur_per_page: 0.055 }

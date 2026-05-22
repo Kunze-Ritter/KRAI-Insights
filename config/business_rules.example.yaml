@@ -1,0 +1,29 @@
+# Business rules for krai-insights analytics.
+# Copy to `business_rules.yaml` and fill in. The real file is gitignored
+# (may contain commercial figures).
+
+# Labour hourly rate(s) in EUR. Radix delivers only work-time MINUTES (no amount),
+# so the rate must be provided here to turn labour into € cost.
+labor:
+  default_hourly_rate_eur: 0            # FILL IN, e.g. 95.0
+  # Optional overrides (rates differ by invoicing type / work type):
+  overrides_by_invoicing_type: {}       # e.g. {"AUF - Aufwand": 95.0, "GAR - Garantie": 0.0}
+
+# Warranty assessment thresholds.
+warranty:
+  default_days: 365                     # time window (1 year)
+  premature_pct_of_oem: 0.7             # below this fraction of OEM rated life = claim/negotiation
+
+# Verbrauchsmaterial / lifespan thresholds.
+vbm:
+  min_samples_for_lifetime_model: 10    # min replacements before a (model x part) lifetime is trusted
+  false_report_max_pages: 100           # fewer pages than this = artifact / sensor blip
+
+# Device telemetry.
+device:
+  live_threshold_days: 60               # data transfer within N days counts as "live"
+
+# Scheduled push reports (optional; e-mail / Teams).
+reports:
+  recipients: []
+  cadence: weekly
