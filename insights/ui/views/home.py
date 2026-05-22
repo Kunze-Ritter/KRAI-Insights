@@ -39,22 +39,26 @@ if not k:
 
 claims = int(k.get("garantie_claims") or 0)
 preis = int(k.get("toner_preis_median") or 0)
-schaetz = claims * preis
+restwert = float(k.get("claim_restwert_summe") or 0)
+schaetz = round(restwert * preis)
 
 # --- Hero: Geld zurückholen (Garantie) -------------------------------------
 st.subheader("💰 Geld zurückholen — Garantie")
 c1, c2, c3 = st.columns(3)
 c1.metric("Geschätztes Rückhol-Potenzial", _eur(schaetz),
-          help=f"Grobe Schätzung: {_de(claims)} reklamierbare Fälle x ~{preis} € mittlerer Tonerpreis. "
-               "Nur wo Preise bekannt sind; dient der Größenordnung.")
+          help=f"Realistisch: erstattet wird nur die NICHT verbrauchte Restlaufzeit. "
+               f"Summe der Restlaufzeit-Anteile ({_de(restwert)}) x ~{preis} € mittlerer Tonerpreis. "
+               "Grobe Schätzung (wenige Preise bekannt) — dient der Größenordnung.")
 c2.metric("Reklamierbare Garantiefälle", _de(claims),
-          help="Serial-belegt: Material innerhalb 1 Jahr UND deutlich unter Soll-Laufleistung.")
+          help="Serial-belegt, Fehlmeldungen (Wiedereinsetzen) herausgefiltert: Material innerhalb "
+               "1 Jahr UND unter 70 % der Soll-Laufleistung.")
 c3.metric("Verhandlungs-Kandidaten", _de(int(k.get("verhandlung_kandidaten") or 0)),
           help="Über 1 Jahr, aber unter Soll-Laufleistung — Hebel gegenüber dem Hersteller.")
 st.caption(
     f"Die Garantiefälle erreichten im Schnitt nur **{int(k.get('claim_schnitt_pct') or 0)} %** der "
-    "Hersteller-Soll-Laufleistung — jeder Fall ist über die Material-Seriennummer belegt. "
-    "Konkrete Liste: Seite Verbrauchsmaterial → Garantie-Bewertung, oder den Assistenten fragen."
+    "Hersteller-Soll-Laufleistung — jeder Fall ist über die Material-Seriennummer belegt. Erstattet wird "
+    "nur der **ungenutzte Anteil** (z. B. 30 % erreicht → 70 % erstattbar). Falsch-Wechsel (Tür auf/zu, "
+    "Wiedereinsetzen) sind herausgerechnet. Liste: Seite Verbrauchsmaterial → Garantie-Bewertung."
 )
 
 st.divider()

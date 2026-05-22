@@ -59,13 +59,14 @@ def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
     r = df.iloc[0]
     claims = int(r["garantie_claims"] or 0)
     preis = int(r["toner_preis_median"] or 0)
-    schaetz = claims * preis
+    restwert = float(r["claim_restwert_summe"] or 0)
+    schaetz = round(restwert * preis)
     txt = (
         "Lagebericht (Stand jetzt):\n"
-        f"• Garantie/Geld: {claims} serial-belegte Garantiefälle (Ø nur {int(r['claim_schnitt_pct'] or 0)} % der "
-        f"Soll-Laufzeit erreicht) → geschätzt {_eur(schaetz)} reklamierbares Material "
-        f"(grobe Schätzung, ~{preis} € je Einheit); zusätzlich {int(r['verhandlung_kandidaten'] or 0)} "
-        "Verhandlungs-Kandidaten als Hebel.\n"
+        f"• Garantie/Geld: {claims} serial-belegte Garantiefälle (Falschmeldungen herausgefiltert; Ø nur "
+        f"{int(r['claim_schnitt_pct'] or 0)} % der Soll-Laufzeit erreicht) → geschätzt {_eur(schaetz)} "
+        f"erstattbar (nur die ungenutzte Restlaufzeit, ~{preis} € je Einheit); zusätzlich "
+        f"{int(r['verhandlung_kandidaten'] or 0)} Verhandlungs-Kandidaten als Hebel.\n"
         f"• Abrechnungsrisiko: {int(r['stille_unter_vertrag'] or 0)} Geräte unter Vertrag melden keine Zähler "
         "(Abrechnung läuft auf Schätzwerten).\n"
         f"• Datenqualität: {int(r['kunden_abweichung'] or 0)} Geräte mit abweichender Kundenzuordnung "
@@ -78,20 +79,24 @@ def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
 
 
 def r_warranty_overview(args: dict[str, Any]) -> AnswerCard:
+    lb = _df("SELECT garantie_claims, claim_schnitt_pct, claim_restwert_summe, toner_preis_median "
+             "FROM insights.vw_lagebericht")
+    preis = int(lb.iloc[0]["toner_preis_median"] or 0) if not lb.empty else 0
+    claims = int(lb.iloc[0]["garantie_claims"] or 0) if not lb.empty else 0
+    pct = int(lb.iloc[0]["claim_schnitt_pct"] or 0) if not lb.empty else 0
+    restwert = float(lb.iloc[0]["claim_restwert_summe"] or 0) if not lb.empty else 0.0
+    # per-manufacturer estimated reclaim = residual fraction sum x median price
     sql = (
-        "SELECT hersteller, garantiefaelle, claim_schnitt_pct AS schnitt_pct_vom_soll, verhandlung "
+        "SELECT hersteller, garantiefaelle, claim_schnitt_pct AS schnitt_pct_vom_soll, verhandlung, "
+        f"round(restwert_summe * {preis}) AS erstattbar_eur "
         "FROM insights.vw_warranty_by_manufacturer"
     )
     df = _df(sql)
-    lb = _df("SELECT garantie_claims, claim_schnitt_pct, toner_preis_median FROM insights.vw_lagebericht")
-    claims = int(lb.iloc[0]["garantie_claims"] or 0) if not lb.empty else 0
-    preis = int(lb.iloc[0]["toner_preis_median"] or 0) if not lb.empty else 0
-    pct = int(lb.iloc[0]["claim_schnitt_pct"] or 0) if not lb.empty else 0
     txt = (
-        f"Garantie-Übersicht: {claims} serial-belegte Garantiefälle, im Schnitt nur {pct} % der "
-        f"Soll-Laufzeit erreicht → geschätzt {_eur(claims * preis)} reklamierbares Material "
-        f"(grobe Schätzung, ~{preis} € je Einheit). Verteilung nach Hersteller siehe Tabelle; "
-        "die konkreten, einreichbaren Einzelfälle liefert die Funktion 'garantie_kandidaten'."
+        f"Garantie-Übersicht: {claims} serial-belegte Garantiefälle (Falschmeldungen herausgefiltert), "
+        f"im Schnitt nur {pct} % der Soll-Laufzeit erreicht → geschätzt {_eur(round(restwert * preis))} "
+        f"erstattbar (nur die ungenutzte Restlaufzeit, ~{preis} € je Einheit). Verteilung + erstattbarer "
+        "Wert je Hersteller siehe Tabelle; die einreichbaren Einzelfälle liefert 'garantie_kandidaten'."
     )
     return AnswerCard(text=txt, data=df, citation=_cite("vw_warranty_by_manufacturer", sql))
 
