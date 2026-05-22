@@ -158,6 +158,26 @@ def r_out_of_contract(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_out_of_contract_devices", sql))
 
 
+def r_vbm_validation(args: dict[str, Any]) -> AnswerCard:
+    suche = (args.get("suche") or "").strip()
+    nur_verdacht = args.get("nur_verdacht", True)
+    where = ["validierung = 'verdacht_fake'"] if nur_verdacht else ["validierung <> 'radix_bestaetigt'"]
+    params: dict[str, Any] = {}
+    if suche:
+        where.append("(device_serial ILIKE :s OR customer_name ILIKE :s)")
+        params["s"] = f"%{suche}%"
+    sql = (
+        "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "colorant AS farbe, marker_name AS material, event_date AS datum, classification AS art, "
+        "pages_since_previous AS seiten, validierung "
+        f"FROM insights.vw_vbm_validation WHERE {' AND '.join(where)} ORDER BY event_date DESC LIMIT 100"
+    )
+    df = _df(sql, params)
+    txt = (f"{len(df)} Teilewechsel mit Fake-Verdacht (FleetMgmt meldet Wechsel, "
+           "aber kein passendes Radix-Material / nur Tür auf-zu).")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_vbm_validation", sql))
+
+
 _GAR_DESC = "Garantiefaelle oder Verhandlungs-Kandidaten (Teile unter Soll-Laufzeit), serial-belegt."
 _ART_DESC = "claim = Garantiefall, verhandlung = Kandidat"
 
@@ -184,6 +204,10 @@ REGISTRY: list[Route] = [
     Route("geraete_ohne_vertrag", "Aktive Geräte ohne laufenden Vertrag (Up-Sell-Chance).",
           {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
           r_out_of_contract),
+    Route("teilewechsel_validieren",
+          "Prüft FleetMgmt-Teilewechsel gegen Radix: echter Tausch vs. Fake (Tür auf/zu, Wiedereinsetzen).",
+          {"suche": {"type": "string", "description": "optionaler Geräte-Seriennummer- oder Kunden-Filter"}}, [],
+          r_vbm_validation),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}
