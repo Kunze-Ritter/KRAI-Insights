@@ -27,7 +27,7 @@ from sqlalchemy import text
 from insights.core.config import get_settings
 from insights.core.db import insights_engine
 from insights.core.logging import get_logger
-from insights.etl import fleetmgmt_extractor
+from insights.etl import fleetmgmt_extractor, krai_pm_extractor
 from insights.etl.radix import RadixAuthManager, RadixDataClient
 
 logger = get_logger(__name__)
@@ -303,14 +303,53 @@ def load_vbm_lifecycle(limit: int | None = None) -> int:
     return total
 
 
+_UPSERT_ERRORCODE = text(
+    """
+    INSERT INTO insights.error_code_ref (
+        id, error_code, manufacturer, error_description, solution_technician_text,
+        severity_level, estimated_fix_time_minutes, requires_parts, page_number,
+        confidence_score, product_ids
+    ) VALUES (
+        :id, :error_code, :manufacturer, :error_description, :solution_technician_text,
+        :severity_level, :estimated_fix_time_minutes, :requires_parts, :page_number,
+        :confidence_score, CAST(:product_ids AS jsonb)
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        error_code                 = EXCLUDED.error_code,
+        manufacturer               = EXCLUDED.manufacturer,
+        error_description          = EXCLUDED.error_description,
+        solution_technician_text   = EXCLUDED.solution_technician_text,
+        severity_level             = EXCLUDED.severity_level,
+        estimated_fix_time_minutes = EXCLUDED.estimated_fix_time_minutes,
+        requires_parts             = EXCLUDED.requires_parts,
+        page_number                = EXCLUDED.page_number,
+        confidence_score           = EXCLUDED.confidence_score,
+        product_ids                = EXCLUDED.product_ids,
+        ingested_at                = now()
+    """
+)
+
+
+def load_error_codes(limit: int | None = None) -> int:
+    """Materialise krai_intelligence error codes into insights.error_code_ref."""
+    total = 0
+    with insights_engine().begin() as conn:
+        for batch in _batched(krai_pm_extractor.fetch_error_codes(limit=limit), _BATCH):
+            conn.execute(_UPSERT_ERRORCODE, list(batch))
+            total += len(batch)
+    logger.info("error_code_ref load complete: %d codes", total)
+    return total
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Insights ETL load")
     parser.add_argument("--radix", action="store_true", help="enrich existing devices from Radix")
     parser.add_argument("--vbm", action="store_true", help="load VBM lifecycle events (ACCMARKERREFILL)")
     parser.add_argument("--models", action="store_true", help="seed model_catalog + aliases")
+    parser.add_argument("--errorcodes", action="store_true", help="materialise KRAI error codes")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
-    only_flags = args.radix or args.vbm or args.models
+    only_flags = args.radix or args.vbm or args.models or args.errorcodes
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -323,3 +362,6 @@ if __name__ == "__main__":
     if args.all or args.models:
         s = seed_model_catalog()
         logger.info("Model catalog seeded: %s", s)
+    if args.all or args.errorcodes:
+        e = load_error_codes()
+        logger.info("Error-code reference loaded: %d codes.", e)
