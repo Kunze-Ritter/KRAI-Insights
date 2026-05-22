@@ -58,15 +58,17 @@ def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
         return AnswerCard(text="Keine Kennzahlen verfügbar.", citation=_cite("vw_lagebericht", sql))
     r = df.iloc[0]
     claims = int(r["garantie_claims"] or 0)
+    claims_serial = int(r["garantie_claims_serial"] or 0)
     preis = int(r["toner_preis_median"] or 0)
     restwert = float(r["claim_restwert_summe"] or 0)
     schaetz = round(restwert * preis)
     txt = (
         "Lagebericht (Stand jetzt):\n"
-        f"• Garantie/Geld: {claims} serial-belegte Garantiefälle (Falschmeldungen herausgefiltert; Ø nur "
-        f"{int(r['claim_schnitt_pct'] or 0)} % der Soll-Laufzeit erreicht) → geschätzt {_eur(schaetz)} "
-        f"erstattbar (nur die ungenutzte Restlaufzeit, ~{preis} € je Einheit); zusätzlich "
-        f"{int(r['verhandlung_kandidaten'] or 0)} Verhandlungs-Kandidaten als Hebel.\n"
+        f"• Garantie/Geld: {claims} reklamierbare Garantiefälle (davon {claims_serial} serial-belegt = "
+        f"stärkster Nachweis; Falschmeldungen herausgefiltert; Ø nur {int(r['claim_schnitt_pct'] or 0)} % "
+        f"der Soll-Laufzeit erreicht) → geschätzt {_eur(schaetz)} erstattbar (nur die ungenutzte "
+        f"Restlaufzeit, ~{preis} € je Einheit); zusätzlich {int(r['verhandlung_kandidaten'] or 0)} "
+        "Verhandlungs-Kandidaten als Hebel.\n"
         f"• Abrechnungsrisiko: {int(r['stille_unter_vertrag'] or 0)} Geräte unter Vertrag melden keine Zähler "
         "(Abrechnung läuft auf Schätzwerten).\n"
         f"• Datenqualität: {int(r['kunden_abweichung'] or 0)} Geräte mit abweichender Kundenzuordnung "
@@ -79,24 +81,26 @@ def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
 
 
 def r_warranty_overview(args: dict[str, Any]) -> AnswerCard:
-    lb = _df("SELECT garantie_claims, claim_schnitt_pct, claim_restwert_summe, toner_preis_median "
-             "FROM insights.vw_lagebericht")
+    lb = _df("SELECT garantie_claims, garantie_claims_serial, claim_schnitt_pct, claim_restwert_summe, "
+             "toner_preis_median FROM insights.vw_lagebericht")
     preis = int(lb.iloc[0]["toner_preis_median"] or 0) if not lb.empty else 0
     claims = int(lb.iloc[0]["garantie_claims"] or 0) if not lb.empty else 0
+    claims_serial = int(lb.iloc[0]["garantie_claims_serial"] or 0) if not lb.empty else 0
     pct = int(lb.iloc[0]["claim_schnitt_pct"] or 0) if not lb.empty else 0
     restwert = float(lb.iloc[0]["claim_restwert_summe"] or 0) if not lb.empty else 0.0
     # per-manufacturer estimated reclaim = residual fraction sum x median price
     sql = (
-        "SELECT hersteller, garantiefaelle, claim_schnitt_pct AS schnitt_pct_vom_soll, verhandlung, "
-        f"round(restwert_summe * {preis}) AS erstattbar_eur "
+        "SELECT hersteller, garantiefaelle, serial_belegt, claim_schnitt_pct AS schnitt_pct_vom_soll, "
+        f"verhandlung, round(restwert_summe * {preis}) AS erstattbar_eur "
         "FROM insights.vw_warranty_by_manufacturer"
     )
     df = _df(sql)
     txt = (
-        f"Garantie-Übersicht: {claims} serial-belegte Garantiefälle (Falschmeldungen herausgefiltert), "
-        f"im Schnitt nur {pct} % der Soll-Laufzeit erreicht → geschätzt {_eur(round(restwert * preis))} "
-        f"erstattbar (nur die ungenutzte Restlaufzeit, ~{preis} € je Einheit). Verteilung + erstattbarer "
-        "Wert je Hersteller siehe Tabelle; die einreichbaren Einzelfälle liefert 'garantie_kandidaten'."
+        f"Garantie-Übersicht: {claims} reklamierbare Garantiefälle (davon {claims_serial} serial-belegt; "
+        f"Falschmeldungen herausgefiltert), im Schnitt nur {pct} % der Soll-Laufzeit erreicht → geschätzt "
+        f"{_eur(round(restwert * preis))} erstattbar (nur die ungenutzte Restlaufzeit, ~{preis} € je Einheit). "
+        "Hinweis: Konica Minolta/Kyocera melden keine Seriennummer (serial_belegt=0), die Fälle sind aber "
+        "über die Zähler belegt. Erstattbarer Wert je Hersteller siehe Tabelle."
     )
     return AnswerCard(text=txt, data=df, citation=_cite("vw_warranty_by_manufacturer", sql))
 
@@ -154,16 +158,18 @@ def r_warranty_candidates(args: dict[str, Any]) -> AnswerCard:
     kind_in = (args.get("art") or "claim").lower()
     kind = "negotiation" if kind_in.startswith(("verhand", "negoti")) else "claim"
     sql = (
-        "SELECT customer_name AS kunde, model_display AS modell, cartridge_serial AS material_seriennr, "
-        "colorant AS farbe, age_days AS standzeit_tage, pages AS gelaufene_seiten, rated AS soll, "
-        "pct_of_oem AS pct_vom_soll, removed_on AS gewechselt "
-        "FROM insights.vw_warranty_assessment WHERE warranty_class = :k AND cartridge_serial IS NOT NULL "
-        "AND (:c = '' OR customer_name ILIKE :cl) ORDER BY pct_of_oem ASC LIMIT 50"
+        "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
+        "cartridge_serial AS material_seriennr, colorant AS farbe, age_days AS standzeit_tage, "
+        "pages AS gelaufene_seiten, rated AS soll, pct_of_oem AS pct_vom_soll, removed_on AS gewechselt "
+        "FROM insights.vw_warranty_assessment WHERE warranty_class = :k "
+        "AND (:c = '' OR customer_name ILIKE :cl) "
+        "ORDER BY (cartridge_serial IS NOT NULL) DESC, pct_of_oem ASC LIMIT 100"
     )
     df = _df(sql, {"k": kind, "c": customer, "cl": f"%{customer}%"})
     label = "Garantiefälle" if kind == "claim" else "Verhandlungs-Kandidaten"
     fuer = f" für {customer}" if customer else ""
-    txt = f"{len(df)} {label} (serial-belegt){fuer}."
+    n_serial = int(df["material_seriennr"].notna().sum()) if not df.empty else 0
+    txt = f"{len(df)} {label}{fuer} (davon {n_serial} serial-belegt = stärkster Nachweis, oben gelistet)."
     return AnswerCard(text=txt, data=df, citation=_cite("vw_warranty_assessment", sql))
 
 

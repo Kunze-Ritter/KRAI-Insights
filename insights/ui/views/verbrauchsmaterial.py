@@ -105,12 +105,16 @@ with tab_garantie:
         "Bewertung", options=["claim", "negotiation"], default=["claim", "negotiation"],
         format_func=lambda w: WARRANTY_LABEL.get(w, w),
     )
+    nur_serial = st.checkbox("Nur serial-belegte (stärkster Nachweis)", value=False,
+                             help="Konica Minolta/Kyocera melden keine Seriennummer — diese Fälle sind "
+                                  "über die Zähler belegt, aber ohne Serial.")
     such = st.text_input("Filter — Kunde, Hersteller oder Modell (optional)", "")
-    clauses = ["cartridge_serial IS NOT NULL"]
+    clauses = ["warranty_class = ANY(:cls)"] if bewertung else ["TRUE"]
     params: dict = {}
     if bewertung:
-        clauses.append("warranty_class = ANY(:cls)")
         params["cls"] = bewertung
+    if nur_serial:
+        clauses.append("cartridge_serial IS NOT NULL")
     if such.strip():
         clauses.append("(customer_name ILIKE :q OR manufacturer_canonical ILIKE :q OR model_display ILIKE :q)")
         params["q"] = f"%{such.strip()}%"
@@ -118,7 +122,7 @@ with tab_garantie:
         "SELECT customer_name, manufacturer_canonical, model_display, device_serial, radix_device_number, "
         "colorant, cartridge_serial, installed_on, removed_on, age_days, pages, rated, pct_of_oem, warranty_class "
         f"FROM insights.vw_warranty_assessment WHERE {' AND '.join(clauses)} "
-        "ORDER BY pct_of_oem ASC LIMIT 500",
+        "ORDER BY (cartridge_serial IS NOT NULL) DESC, pct_of_oem ASC LIMIT 500",
         params,
     )
     if not df.empty:

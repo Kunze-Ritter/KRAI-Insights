@@ -38,6 +38,7 @@ if not k:
     st.stop()
 
 claims = int(k.get("garantie_claims") or 0)
+claims_serial = int(k.get("garantie_claims_serial") or 0)
 preis = int(k.get("toner_preis_median") or 0)
 restwert = float(k.get("claim_restwert_summe") or 0)
 schaetz = round(restwert * preis)
@@ -50,15 +51,18 @@ c1.metric("Geschätztes Rückhol-Potenzial", _eur(schaetz),
                f"Summe der Restlaufzeit-Anteile ({_de(restwert)}) x ~{preis} € mittlerer Tonerpreis. "
                "Grobe Schätzung (wenige Preise bekannt) — dient der Größenordnung.")
 c2.metric("Reklamierbare Garantiefälle", _de(claims),
-          help="Serial-belegt, Fehlmeldungen (Wiedereinsetzen) herausgefiltert: Material innerhalb "
-               "1 Jahr UND unter 70 % der Soll-Laufleistung.")
-c3.metric("Verhandlungs-Kandidaten", _de(int(k.get("verhandlung_kandidaten") or 0)),
-          help="Über 1 Jahr, aber unter Soll-Laufleistung — Hebel gegenüber dem Hersteller.")
+          help="Material innerhalb 1 Jahr UND unter 70 % der Soll-Laufleistung; Fehlmeldungen "
+               "(Wiedereinsetzen / Tür auf-zu) sind herausgerechnet.")
+c3.metric("davon serial-belegt", _de(claims_serial),
+          help="Mit Hersteller-Seriennummer = stärkster Nachweis. Manche Hersteller (z. B. Konica "
+               "Minolta, Kyocera) melden keine Seriennummer — diese Fälle sind über die FleetMgmt-Zähler "
+               "belegt, aber ohne Serial.")
 st.caption(
     f"Die Garantiefälle erreichten im Schnitt nur **{int(k.get('claim_schnitt_pct') or 0)} %** der "
-    "Hersteller-Soll-Laufleistung — jeder Fall ist über die Material-Seriennummer belegt. Erstattet wird "
-    "nur der **ungenutzte Anteil** (z. B. 30 % erreicht → 70 % erstattbar). Falsch-Wechsel (Tür auf/zu, "
-    "Wiedereinsetzen) sind herausgerechnet. Liste: Seite Verbrauchsmaterial → Garantie-Bewertung."
+    "Hersteller-Soll-Laufleistung. Erstattet wird nur der **ungenutzte Anteil** (z. B. 30 % erreicht → "
+    f"70 % erstattbar). **{_de(claims_serial)}** Fälle sind serial-belegt (starker Nachweis), der Rest über "
+    f"die Zähler belegt. Zusätzlich **{_de(int(k.get('verhandlung_kandidaten') or 0))}** Verhandlungs-"
+    "Kandidaten (über 1 Jahr, aber unter Soll). Liste: Seite Verbrauchsmaterial → Garantie-Bewertung."
 )
 
 st.divider()
