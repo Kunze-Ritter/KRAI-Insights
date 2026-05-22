@@ -16,6 +16,7 @@ WARRANTY_LABEL = {
     "wear": "Verschleiß (normal)",
     "normal": "Normal",
     "artifact": "Messartefakt",
+    "fehlmeldung": "Fehlmeldung (Wiedereinsetzen)",
     "unknown": "Unbekannt",
 }
 CLASS_LABEL = {
