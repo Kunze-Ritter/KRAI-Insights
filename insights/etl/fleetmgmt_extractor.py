@@ -42,6 +42,10 @@ SELECT
     d.SubmitterId          AS submitter_id,
     u.Name                 AS customer_name,
     u.City                 AS customer_city,
+    -- Printer network identity for field service (device infra, not a person's
+    -- IP). '0.0.0.0' is a placeholder -> NULL; real IPs and hostnames are kept.
+    NULLIF(NULLIF(d.IPAddress, ''), '0.0.0.0') AS printer_ip,
+    NULLIF(d.MACAddress, '') AS mac_address,
     d.Created              AS created,
     d.Deactivated          AS deactivated,
     d.Deleted              AS deleted,

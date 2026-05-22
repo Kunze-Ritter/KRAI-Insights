@@ -40,11 +40,13 @@ _UPSERT_FLEETMGMT = text(
     INSERT INTO insights.devices_unified (
         manufacturer_serial, fleetmgmt_device_id, fleetmgmt_user_id, internal_id,
         customer_name, customer_city, manufacturer_canonical, model_display,
+        printer_ip, mac_address,
         deployed_date, last_data_transfer_at, device_status, telemetry_stale_days,
         source_systems, updated_at
     ) VALUES (
         :serial, :device_id, :user_id, :internal_id,
         :customer_name, :customer_city, :vendor, :model_display,
+        :printer_ip, :mac_address,
         :deployed_date, :last_transfer, :status, :stale_days,
         ARRAY['fleetmgmt']::varchar[], now()
     )
@@ -57,6 +59,8 @@ _UPSERT_FLEETMGMT = text(
         customer_city          = EXCLUDED.customer_city,
         manufacturer_canonical = EXCLUDED.manufacturer_canonical,
         model_display          = EXCLUDED.model_display,
+        printer_ip             = EXCLUDED.printer_ip,
+        mac_address            = EXCLUDED.mac_address,
         deployed_date          = EXCLUDED.deployed_date,
         last_data_transfer_at  = EXCLUDED.last_data_transfer_at,
         device_status          = EXCLUDED.device_status,
@@ -137,6 +141,8 @@ def _to_param(rec: dict[str, Any]) -> dict[str, Any]:
         "customer_city": rec.get("customer_city"),
         "vendor": rec.get("vendor"),
         "model_display": rec.get("model_display"),
+        "printer_ip": rec.get("printer_ip"),
+        "mac_address": rec.get("mac_address"),
         "deployed_date": created.date() if created else None,
         "last_transfer": rec.get("last_data_transfer_at"),
         "status": rec.get("device_status"),

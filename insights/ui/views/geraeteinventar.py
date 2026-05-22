@@ -25,6 +25,8 @@ SPALTEN = {
     "customer_city": "Ort",
     "manufacturer_canonical": "Hersteller",
     "model_display": "Modell",
+    "printer_ip": "IP-Adresse",
+    "mac_address": "MAC-Adresse",
     "device_status": "Status",
     "telemetry_stale_days": "Tage ohne Meldung",
     "last_data_transfer_at": "Letzte Meldung",
@@ -50,8 +52,8 @@ def geraete(suche: str, status: list[str], limit: int) -> pd.DataFrame:
     if suche:
         clauses.append(
             "AND (manufacturer_serial ILIKE :q OR radix_device_number ILIKE :q "
-            "OR customer_name ILIKE :q OR model_display ILIKE :q "
-            "OR CAST(fleetmgmt_device_id AS TEXT) = :exact)"
+            "OR customer_name ILIKE :q OR model_display ILIKE :q OR printer_ip ILIKE :q "
+            "OR mac_address ILIKE :q OR CAST(fleetmgmt_device_id AS TEXT) = :exact)"
         )
         params["q"] = f"%{suche}%"
         params["exact"] = suche
@@ -61,7 +63,8 @@ def geraete(suche: str, status: list[str], limit: int) -> pd.DataFrame:
     params["lim"] = limit
     sql = (
         "SELECT manufacturer_serial, radix_device_number, fleetmgmt_device_id, customer_name, "
-        "customer_city, manufacturer_canonical, model_display, device_status, telemetry_stale_days, "
+        "customer_city, manufacturer_canonical, model_display, printer_ip, mac_address, "
+        "device_status, telemetry_stale_days, "
         "last_data_transfer_at FROM insights.vw_device_lookup "
         f"WHERE {' '.join(clauses)} "
         "ORDER BY (device_status = 'live') DESC, customer_name NULLS LAST LIMIT :lim"
@@ -95,7 +98,7 @@ st.caption(
 st.divider()
 st.subheader("Geräteliste")
 col_suche, col_status, col_limit = st.columns([3, 2, 1])
-suche = col_suche.text_input("Suche — Seriennummer, Radix-ID, Kunde oder Modell", "")
+suche = col_suche.text_input("Suche — Seriennummer, Radix-ID, Kunde, Modell oder IP-Adresse", "")
 status_wahl = col_status.multiselect(
     "Status",
     options=list(STATUS_LABEL.keys()),

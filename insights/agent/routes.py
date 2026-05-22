@@ -52,10 +52,11 @@ def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     sql = (
         "SELECT manufacturer_serial AS seriennummer, radix_device_number AS radix_id, "
         "customer_name AS kunde, customer_city AS ort, manufacturer_canonical AS hersteller, "
-        "model_display AS modell, device_status AS status, telemetry_stale_days AS tage_ohne_meldung "
+        "model_display AS modell, device_status AS status, telemetry_stale_days AS tage_ohne_meldung, "
+        "printer_ip AS ip_adresse, mac_address AS mac_adresse "
         "FROM insights.vw_device_lookup "
         "WHERE manufacturer_serial ILIKE :q OR radix_device_number = :exact "
-        "OR customer_name ILIKE :q OR model_display ILIKE :q "
+        "OR customer_name ILIKE :q OR model_display ILIKE :q OR printer_ip ILIKE :q "
         "ORDER BY (device_status = 'live') DESC LIMIT 25"
     )
     df = _df(sql, {"q": f"%{q}%", "exact": q})
@@ -66,6 +67,11 @@ def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
         d = df.iloc[0]
         txt = (f"Gerät {d['seriennummer']} (Radix-ID {d['radix_id']}): {d['hersteller']} {d['modell']}, "
                f"Kunde {d['kunde']} ({d['ort']}), Status {d['status']}.")
+        if d["ip_adresse"]:
+            txt += f" IP {d['ip_adresse']}"
+            if d["mac_adresse"]:
+                txt += f" / MAC {d['mac_adresse']}"
+            txt += "."
         if d["status"] in ("silent", "never_reported"):
             txt += " Achtung: Dieses Gerät meldet derzeit keine Daten — Prüfung vor Ort empfohlen."
     return AnswerCard(text=txt, data=df, citation=_cite("vw_device_lookup", sql))
@@ -314,9 +320,11 @@ _GAR_DESC = "Garantiefaelle oder Verhandlungs-Kandidaten (Teile unter Soll-Laufz
 _ART_DESC = "claim = Garantiefall, verhandlung = Kandidat"
 
 REGISTRY: list[Route] = [
-    Route("geraet_suchen", "Findet ein Gerät/Drucksystem anhand Seriennummer, Radix-ID, Kunde oder Modell.",
-          {"suche": {"type": "string", "description": "Seriennummer, Radix-ID, Kundenname oder Modell"}}, ["suche"],
-          r_device_lookup),
+    Route("geraet_suchen",
+          "Findet ein Gerät/Drucksystem anhand Seriennummer, Radix-ID, Kunde, Modell oder IP-Adresse "
+          "(zeigt auch IP/MAC für den Service).",
+          {"suche": {"type": "string", "description": "Seriennummer, Radix-ID, Kundenname, Modell oder IP-Adresse"}},
+          ["suche"], r_device_lookup),
     Route("toner_standzeit", "Reale Tonerlaufzeit im Vergleich zur Hersteller-Angabe je Modell.",
           {"farbe": {"type": "string", "enum": ["black", "cyan", "magenta", "yellow"]},
            "modell": {"type": "string", "description": "optionaler Modell-Filter"}}, [],
