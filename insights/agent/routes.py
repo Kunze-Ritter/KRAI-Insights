@@ -178,6 +178,37 @@ def r_vbm_validation(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_vbm_validation", sql))
 
 
+def r_consumables_due(args: dict[str, Any]) -> AnswerCard:
+    tage = int(args.get("tage") or 14)
+    kunde = (args.get("kunde") or "").strip()
+    sql = (
+        "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "colorant AS farbe, marker_name AS material, snmp_level AS fuellstand, "
+        "remaining_days AS rest_tage, empty_date AS leer_am "
+        "FROM insights.vw_consumables_due WHERE remaining_days <= :t "
+        "AND (:c = '' OR customer_name ILIKE :cl) ORDER BY remaining_days ASC LIMIT 200"
+    )
+    df = _df(sql, {"t": tage, "c": kunde, "cl": f"%{kunde}%"})
+    txt = f"{len(df)} Verbrauchsmaterial(ien)/Teil(e) werden in den nächsten {tage} Tagen fällig."
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_consumables_due", sql))
+
+
+def r_part_due(args: dict[str, Any]) -> AnswerCard:
+    geraet = (args.get("geraet") or "").strip()
+    sql = (
+        "SELECT s.colorant AS farbe, s.marker_name AS material, s.snmp_level AS fuellstand, "
+        "s.remaining_days AS rest_tage, s.empty_date AS leer_am, s.remaining_pages AS rest_seiten "
+        "FROM insights.snmp_predictions s "
+        "JOIN insights.devices_unified d ON d.fleetmgmt_device_id = s.fleetmgmt_device_id "
+        "WHERE d.manufacturer_serial = :g OR d.radix_device_number = :g "
+        "ORDER BY s.remaining_days ASC NULLS LAST LIMIT 50"
+    )
+    df = _df(sql, {"g": geraet})
+    txt = (f"Restlaufzeiten für Gerät {geraet}: {len(df)} Materialien/Teile."
+           if not df.empty else f"Keine Vorhersagedaten für {geraet}.")
+    return AnswerCard(text=txt, data=df, citation=_cite("snmp_predictions", sql))
+
+
 _GAR_DESC = "Garantiefaelle oder Verhandlungs-Kandidaten (Teile unter Soll-Laufzeit), serial-belegt."
 _ART_DESC = "claim = Garantiefall, verhandlung = Kandidat"
 
@@ -208,6 +239,15 @@ REGISTRY: list[Route] = [
           "Prüft FleetMgmt-Teilewechsel gegen Radix: echter Tausch vs. Fake (Tür auf/zu, Wiedereinsetzen).",
           {"suche": {"type": "string", "description": "optionaler Geräte-Seriennummer- oder Kunden-Filter"}}, [],
           r_vbm_validation),
+    Route("verbrauch_faellig",
+          "Verbrauchsmaterial/Teile, die bald fällig sind (Toner bald leer, Teil bald zu wechseln).",
+          {"tage": {"type": "integer", "description": "Horizont in Tagen (Standard 14)"},
+           "kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
+          r_consumables_due),
+    Route("restlaufzeit_geraet",
+          "Aktuelle Restlaufzeiten (Tage/Seiten) aller Materialien/Teile eines Geräts.",
+          {"geraet": {"type": "string", "description": "Geräte-Seriennummer oder Radix-ID"}}, ["geraet"],
+          r_part_due),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}

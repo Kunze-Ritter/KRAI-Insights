@@ -163,6 +163,45 @@ def fetch_marker_refills(limit: int | None = None) -> Iterator[dict[str, Any]]:
             yield rec
 
 
+# Current per-marker predictions: Actual=1 is the latest SNMP reading per marker.
+_SNMP_PRED_SQL = """
+SELECT
+    DeviceId             AS fleetmgmt_device_id,
+    SnmpColorant         AS colorant,
+    SnmpClass            AS marker_class,
+    Name                 AS marker_name,
+    TRY_CAST(SnmpLevel AS int) AS snmp_level,
+    Slope                AS slope,
+    RemainingPages       AS remaining_pages,
+    RemainingDays        AS remaining_days,
+    PageCount            AS page_count,
+    EmptyDate            AS empty_date,
+    NotificationDate     AS notification_date,
+    SerialNo             AS cartridge_serial,
+    CoveragePercent      AS coverage_percent,
+    TimeUTC              AS reading_at
+FROM ACCSNMPHISTORY WHERE Actual = 1
+"""
+
+
+def fetch_snmp_predictions(limit: int | None = None) -> Iterator[dict[str, Any]]:
+    """Yield the current consumable/part prediction per device-marker (read-only)."""
+    sql = _SNMP_PRED_SQL
+    if limit:
+        sql = sql.replace("SELECT\n", f"SELECT TOP ({int(limit)})\n", 1)
+    with fleetmgmt_engine().connect() as conn:
+        for row in conn.execute(text(sql)).mappings():
+            rec = dict(row)
+            occ = rec.get("reading_at")
+            if occ is not None and occ.tzinfo is None:
+                rec["reading_at"] = occ.replace(tzinfo=UTC)
+            for k in ("empty_date", "notification_date"):
+                v = rec.get(k)
+                if v is not None and hasattr(v, "date"):
+                    rec[k] = v.date()
+            yield rec
+
+
 def ping() -> bool:
     """Lightweight connectivity check against FleetMgmt MSSQL."""
     with fleetmgmt_engine().connect() as conn:

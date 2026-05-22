@@ -342,6 +342,33 @@ def load_error_codes(limit: int | None = None) -> int:
     return total
 
 
+_INSERT_SNMP = text(
+    """
+    INSERT INTO insights.snmp_predictions (
+        fleetmgmt_device_id, colorant, marker_class, marker_name, snmp_level, slope,
+        remaining_pages, remaining_days, page_count, empty_date, notification_date,
+        cartridge_serial, coverage_percent, reading_at
+    ) VALUES (
+        :fleetmgmt_device_id, :colorant, :marker_class, :marker_name, :snmp_level, :slope,
+        :remaining_pages, :remaining_days, :page_count, :empty_date, :notification_date,
+        :cartridge_serial, :coverage_percent, :reading_at
+    )
+    """
+)
+
+
+def load_snmp_predictions() -> int:
+    """Snapshot-load current SNMP predictions (ACCSNMPHISTORY Actual=1)."""
+    total = 0
+    with insights_engine().begin() as conn:
+        conn.exec_driver_sql("TRUNCATE insights.snmp_predictions")
+        for batch in _batched(fleetmgmt_extractor.fetch_snmp_predictions(), _BATCH):
+            conn.execute(_INSERT_SNMP, list(batch))
+            total += len(batch)
+    logger.info("snmp_predictions loaded (snapshot): %d rows", total)
+    return total
+
+
 _UPSERT_CONTRACT = text(
     """
     INSERT INTO insights.device_contracts (
@@ -550,9 +577,11 @@ if __name__ == "__main__":
     parser.add_argument("--contracts", action="store_true", help="crawl Radix contracts per device")
     parser.add_argument("--costs", action="store_true", help="crawl Radix material+labour costs")
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
+    parser.add_argument("--snmp", action="store_true", help="snapshot-load SNMP predictions")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
-    only_flags = args.radix or args.vbm or args.models or args.errorcodes or args.contracts or args.costs
+    only_flags = (args.radix or args.vbm or args.models or args.errorcodes
+                  or args.contracts or args.costs or args.snmp)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -565,6 +594,9 @@ if __name__ == "__main__":
     if args.all or args.models:
         s = seed_model_catalog()
         logger.info("Model catalog seeded: %s", s)
+    if args.all or args.snmp:
+        sp = load_snmp_predictions()
+        logger.info("SNMP predictions loaded: %d rows.", sp)
     if args.all or args.errorcodes:
         e = load_error_codes()
         logger.info("Error-code reference loaded: %d codes.", e)
