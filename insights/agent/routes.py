@@ -386,6 +386,51 @@ def r_shipping_addresses(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("radix_shipping_addresses", sql))
 
 
+def r_part_early_failures(args: dict[str, Any]) -> AnswerCard:
+    kunde = (args.get("kunde") or "").strip()
+    teiltyp = (args.get("teiltyp") or "").strip()
+    where = ["TRUE"]
+    params: dict[str, Any] = {}
+    if kunde:
+        where.append("customer_name ILIKE :k")
+        params["k"] = f"%{kunde}%"
+    if teiltyp:
+        where.append("teiltyp ILIKE :t")
+        params["t"] = f"%{teiltyp}%"
+    sql = (
+        "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
+        "device_serial AS seriennummer, teiltyp, description AS teil, einbau_datum, erneut_getauscht, "
+        "standzeit_tage FROM insights.vw_part_early_failures "
+        f"WHERE {' AND '.join(where)} ORDER BY standzeit_tage ASC LIMIT 100"
+    )
+    df = _df(sql, params)
+    txt = (f"{len(df)} Ersatzteil-Frühausfälle (innerhalb der ~1-Jahres-Garantie erneut getauscht → "
+           "Reklamation/Geld-zurück prüfen). Niedrigste Standzeit zuerst.")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_part_early_failures", sql))
+
+
+def r_part_lifetime(args: dict[str, Any]) -> AnswerCard:
+    modell = (args.get("modell") or "").strip()
+    teiltyp = (args.get("teiltyp") or "").strip()
+    where = ["TRUE"]
+    params: dict[str, Any] = {}
+    if modell:
+        where.append("modell ILIKE :m")
+        params["m"] = f"%{modell}%"
+    if teiltyp:
+        where.append("teiltyp ILIKE :t")
+        params["t"] = f"%{teiltyp}%"
+    sql = (
+        "SELECT hersteller, modell, teiltyp, stichproben, geraete, median_standzeit_tage, "
+        "schnitt_standzeit_tage FROM insights.vw_part_lifetime_stats "
+        f"WHERE {' AND '.join(where)} ORDER BY median_standzeit_tage ASC LIMIT 50"
+    )
+    df = _df(sql, params)
+    txt = (f"Reale Ersatzteil-Standzeit je Modell und Teiltyp ({len(df)} Kombinationen, ab 5 Wechseln). "
+           "Niedrige Median-Standzeit = störanfälliges Teil/Modell (PM-Vorhersage + Reklamation).")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_part_lifetime_stats", sql))
+
+
 def r_problem_devices(args: dict[str, Any]) -> AnswerCard:
     kunde = (args.get("kunde") or "").strip()
     nur_spam = args.get("nur_spam", False)
@@ -453,6 +498,18 @@ REGISTRY: list[Route] = [
           "Garantie-Auswertung: wie viele reklamierbare Garantiefälle, geschätzter Wert in Euro, "
           "und Verteilung nach Hersteller (wo die Reklamation lohnt).",
           {}, [], r_warranty_overview),
+    Route("ersatzteil_fruehausfaelle",
+          "Ersatzteile (Fixierer, Trommel, Walzen, Boards …), die innerhalb der ~1-Jahres-Garantie "
+          "erneut getauscht wurden — Frühausfälle für Reklamation/Geld-zurück.",
+          {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"},
+           "teiltyp": {"type": "string", "description": "optionaler Teiltyp, z. B. Fixiereinheit, Trommel, Walze"}},
+          [], r_part_early_failures),
+    Route("ersatzteil_standzeit",
+          "Reale Ersatzteil-Standzeit je Modell und Teiltyp (Median aus Wiedereinbau-Intervallen) — "
+          "für Vorhersage (PM) und um störanfällige Teile/Modelle zu finden.",
+          {"modell": {"type": "string", "description": "optionaler Modell-Filter"},
+           "teiltyp": {"type": "string", "description": "optionaler Teiltyp-Filter"}},
+          [], r_part_lifetime),
     Route("geraet_suchen",
           "Findet ein Gerät/Drucksystem anhand Seriennummer, Radix-ID, Kunde, Modell oder IP-Adresse "
           "(zeigt auch IP/MAC für den Service).",

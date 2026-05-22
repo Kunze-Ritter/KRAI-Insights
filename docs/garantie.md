@@ -93,7 +93,48 @@ Monate). Die genaue Frist hängt vom Hersteller ab — deshalb prüfen wir die
 Zeitraum je Hersteller abzuleiten und den „noch einreichbar"-Schnitt sauber zu
 setzen.
 
-## 6. Quellen & Sichten
+## 6. Ersatzteile (nicht nur Toner!)
+
+Garantie betrifft **nicht nur Verbrauchsmaterial** (Toner, Resttonerbehälter),
+sondern auch **Ersatzteile** (Fixiereinheit, Trommel, Transferband, Walzen,
+Mainboards, …). Die Logik ist anders:
+
+- **Verbrauchsmaterial (oben):** hat eine **Soll-Laufleistung** (Seiten) → Frühausfall
+  = unter 70 % der Soll. Quelle: FleetMgmt VBM.
+- **Ersatzteile:** haben **keine** Soll-Laufleistung, nur eine **~1-Jahres-Garantie**.
+  Die reale Standzeit leiten wir aus der **Wiedereinbau-Historie** ab: wird dasselbe
+  Teil auf demselben Gerät erneut getauscht, ist das Intervall die Standzeit des
+  Vorgängers. Quelle: Radix-Material (`cost_events`).
+
+**Zwei Auswertungen** (`docs` → Sichten `vw_part_*`):
+
+1. **Frühausfälle** (`vw_part_early_failures`): Teil innerhalb 7–365 Tagen erneut
+   getauscht → Ausfall innerhalb der Garantie → Reklamation prüfen. (< 7 Tage =
+   Buchung im selben Einsatz = Rauschen, ausgefiltert.) Aktuell ~4.000 Fälle.
+2. **Standzeit-Modell** (`vw_part_lifetime_stats`): Median-Standzeit je
+   (Modell × Teiltyp) aus Intervallen ≥ 30 Tagen, ab 5 Stichproben → dient der
+   **Vorhersage** (wann ist das Teil fällig → PM) und zeigt **störanfällige Teile**
+   (auffällig kurze Standzeit, z. B. ein Modell, dessen Walzen im Median nach
+   ~50 Tagen getauscht werden).
+
+**Grenzen / To-do:** Standzeit aktuell in **Tagen** (Zählerstand beim Einbau ließe
+sich aus der Ticket-/Zähler-Historie ergänzen → Standzeit in Seiten). Teiltyp wird
+per Stichwort aus der Artikelbeschreibung erkannt; „sonstige" ist noch ein großer
+Topf (Klassifikation verfeinerbar). Paarung über gleiche `article_code` — ein
+Nachfolger-Teil mit neuer Artikelnummer wird (noch) nicht gepaart.
+
+### Zwei getrennte Garantie-Ströme (Radix GAR)
+
+Radix führt keinen eigenen Garantie-Objekttyp, aber Vorgänge mit
+`invoicing_type = GAR` sind die **tatsächlich abgewickelte** Garantie-Arbeit — fast
+ausschließlich **Field-Teile** (Fixierer, Trommel, Boards), in Radix mit € 0
+(unter Garantie, nicht berechnet). Die Überschneidung mit unseren
+**Toner**-Frühausfällen ist minimal (~2 von ~680 Geräten) → unsere Toner-Garantie
+ist ein **separater, bislang weitgehend ungenutzter** Rückhol-Strom. GAR liefert
+**keine** Hersteller-Frist und keinen €-Wert (€ 0) — der „noch einreichbar"-Schnitt
+bleibt eine Geschäftsregel.
+
+## 7. Quellen & Sichten
 
 - Basis: `ACCMARKERREFILL` (FleetMgmt) → `vbm_lifecycle_events` → `vw_vbm_lifecycle`
   (Klassifikation, Fehlmeldungs-Flag) → `vw_warranty_assessment` (4-Quadranten).
