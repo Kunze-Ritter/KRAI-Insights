@@ -202,6 +202,50 @@ def fetch_snmp_predictions(limit: int | None = None) -> Iterator[dict[str, Any]]
             yield rec
 
 
+# Printer/SNMP alert history. Non-PII: `ClearedBy`/`EventNote` (human-entered) and
+# `CecData` (raw diagnostic blob) are deliberately excluded. `Raised`/`Cleared` are
+# UTC. Open alert = `Cleared IS NULL`.
+_EVENT_SQL = """
+SELECT
+    pkId             AS source_pkid,
+    DeviceId         AS fleetmgmt_device_id,
+    Severity         AS severity,
+    AlertCode        AS alert_code,
+    AlertGroup       AS alert_group,
+    PrinterError     AS printer_error,
+    Message          AS message,
+    AlertDescription AS alert_description,
+    PageCount        AS page_count_at_event,
+    ContractId       AS contract_id,
+    Raised           AS raised_at,
+    Cleared          AS cleared_at
+FROM ACCEVENTHISTORY
+WHERE DeviceId IS NOT NULL
+"""
+
+
+def fetch_events(limit: int | None = None, since_days: int | None = None) -> Iterator[dict[str, Any]]:
+    """Yield printer/SNMP alert events from ACCEVENTHISTORY (read-only).
+
+    The basis for service-quality routes (problem models/devices, top alert codes,
+    open-event aging). `since_days` bounds the window (None = full history);
+    `raised_at`/`cleared_at` are normalised to UTC.
+    """
+    sql = _EVENT_SQL
+    if since_days:
+        sql += f" AND Raised >= DATEADD(day, -{int(since_days)}, SYSUTCDATETIME())"
+    if limit:
+        sql = sql.replace("SELECT\n", f"SELECT TOP ({int(limit)})\n", 1)
+    with fleetmgmt_engine().connect() as conn:
+        for row in conn.execute(text(sql)).mappings():
+            rec = dict(row)
+            for k in ("raised_at", "cleared_at"):
+                v = rec.get(k)
+                if v is not None and v.tzinfo is None:
+                    rec[k] = v.replace(tzinfo=UTC)
+            yield rec
+
+
 def ping() -> bool:
     """Lightweight connectivity check against FleetMgmt MSSQL."""
     with fleetmgmt_engine().connect() as conn:

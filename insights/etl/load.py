@@ -304,6 +304,36 @@ def load_vbm_lifecycle(limit: int | None = None) -> int:
     return total
 
 
+_UPSERT_EVENT = text(
+    """
+    INSERT INTO insights.fleet_events (
+        source_pkid, fleetmgmt_device_id, severity, alert_code, alert_group,
+        printer_error, message, alert_description, page_count_at_event,
+        contract_id, raised_at, cleared_at
+    ) VALUES (
+        :source_pkid, :fleetmgmt_device_id, :severity, :alert_code, :alert_group,
+        :printer_error, :message, :alert_description, :page_count_at_event,
+        :contract_id, :raised_at, :cleared_at
+    )
+    ON CONFLICT (source_pkid) DO UPDATE SET
+        severity     = EXCLUDED.severity,
+        cleared_at   = EXCLUDED.cleared_at,
+        ingested_at  = now()
+    """
+)
+
+
+def load_events(limit: int | None = None, since_days: int | None = None) -> int:
+    """Load FleetMgmt printer/SNMP alert events into insights.fleet_events."""
+    total = 0
+    with insights_engine().begin() as conn:
+        for batch in _batched(fleetmgmt_extractor.fetch_events(limit=limit, since_days=since_days), _BATCH):
+            conn.execute(_UPSERT_EVENT, list(batch))
+            total += len(batch)
+            logger.info("upserted fleet events (running total %d)", total)
+    return total
+
+
 _UPSERT_ERRORCODE = text(
     """
     INSERT INTO insights.error_code_ref (
@@ -578,10 +608,13 @@ if __name__ == "__main__":
     parser.add_argument("--costs", action="store_true", help="crawl Radix material+labour costs")
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
     parser.add_argument("--snmp", action="store_true", help="snapshot-load SNMP predictions")
+    parser.add_argument("--events", action="store_true", help="load FleetMgmt alert events (ACCEVENTHISTORY)")
+    parser.add_argument("--events-since-days", type=int, default=None,
+                        help="bound event load to the last N days (default: full history)")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
-                  or args.contracts or args.costs or args.snmp)
+                  or args.contracts or args.costs or args.snmp or args.events)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -603,6 +636,9 @@ if __name__ == "__main__":
     if args.all or args.contracts:
         ctr = enrich_contracts_from_radix()
         logger.info("Contracts loaded: %s", ctr)
+    if args.all or args.events:
+        ev = load_events(since_days=args.events_since_days)
+        logger.info("Fleet events loaded: %d events processed.", ev)
     if args.costs:
         cst = crawl_costs(customer_limit=args.cost_limit)
         logger.info("Cost events loaded: %s", cst)

@@ -256,6 +256,60 @@ def r_material_install_check(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_material_install_check", sql))
 
 
+def r_problem_devices(args: dict[str, Any]) -> AnswerCard:
+    kunde = (args.get("kunde") or "").strip()
+    nur_spam = args.get("nur_spam", False)
+    where = ["einstufung = 'sensor_spam'"] if nur_spam else ["TRUE"]
+    params: dict[str, Any] = {}
+    if kunde:
+        where.append("customer_name ILIKE :cl")
+        params["cl"] = f"%{kunde}%"
+    sql = (
+        "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "events_365d AS alarme_jahr, offene_alarme, verschiedene_codes, einstufung, letzter_alarm "
+        f"FROM insights.vw_problem_devices WHERE {' AND '.join(where)} LIMIT 100"
+    )
+    df = _df(sql, params)
+    txt = (f"{len(df)} auffällige(s) Gerät(e) mit erhöhtem Alarm-Aufkommen "
+           "(mögliche defekte Sensoren / wiederkehrende Störungen → Field-Service-Kandidat).")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_problem_devices", sql))
+
+
+def r_problem_models(args: dict[str, Any]) -> AnswerCard:
+    sql = (
+        "SELECT hersteller, modell, geraete, alarme_gesamt, alarme_pro_geraet "
+        "FROM insights.vw_problem_models LIMIT 30"
+    )
+    df = _df(sql)
+    txt = (f"{len(df)} Modell(e) nach Alarm-Aufkommen je Gerät (letzte 365 Tage, "
+           "ab 5 Geräten) — hohe Werte = störanfälliges Modell.")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_problem_models", sql))
+
+
+def r_top_alert_codes(args: dict[str, Any]) -> AnswerCard:
+    sql = (
+        "SELECT alert_code AS code, bedeutung, alarme, betroffene_geraete, max_severity "
+        "FROM insights.vw_top_alert_codes LIMIT 30"
+    )
+    df = _df(sql)
+    txt = f"Häufigste Alarm-Codes der Flotte (letzte 365 Tage) — {len(df)} Codes."
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_top_alert_codes", sql))
+
+
+def r_open_events(args: dict[str, Any]) -> AnswerCard:
+    kunde = (args.get("kunde") or "").strip()
+    min_tage = int(args.get("min_tage") or 0)
+    sql = (
+        "SELECT customer_name AS kunde, model_display AS modell, device_serial AS seriennummer, "
+        "alert_code AS code, bedeutung, offen_tage, offen_seit "
+        "FROM insights.vw_open_events_aging WHERE offen_tage >= :mt "
+        "AND (:c = '' OR customer_name ILIKE :cl) ORDER BY offen_tage DESC LIMIT 100"
+    )
+    df = _df(sql, {"mt": min_tage, "c": kunde, "cl": f"%{kunde}%"})
+    txt = f"{len(df)} offene(r) Alarm(e) (noch nicht quittiert), älteste zuerst."
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_open_events_aging", sql))
+
+
 _GAR_DESC = "Garantiefaelle oder Verhandlungs-Kandidaten (Teile unter Soll-Laufzeit), serial-belegt."
 _ART_DESC = "claim = Garantiefall, verhandlung = Kandidat"
 
@@ -306,6 +360,22 @@ REGISTRY: list[Route] = [
                       "description": "woanders = Falschbuchung (Standard), kein_einbau = ohne Einbau, korrekt"},
            "suche": {"type": "string", "description": "optionale gebuchte Geräte-Seriennummer"}}, [],
           r_material_install_check),
+    Route("problem_geraete",
+          "Geräte mit auffällig vielen Alarmen (defekte Sensoren / wiederkehrende Störungen, Field-Service).",
+          {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"},
+           "nur_spam": {"type": "boolean", "description": "nur Sensor-Spam (>=1000 Alarme/Jahr)"}}, [],
+          r_problem_devices),
+    Route("problem_modelle",
+          "Störanfälligste Geräte-Modelle nach Alarm-Aufkommen je Gerät (letzte 365 Tage).",
+          {}, [], r_problem_models),
+    Route("haeufige_alarme",
+          "Häufigste Alarm-Codes der gesamten Flotte mit Bedeutung und Anzahl betroffener Geräte.",
+          {}, [], r_top_alert_codes),
+    Route("offene_alarme",
+          "Offene (noch nicht quittierte) Alarme mit Standzeit — älteste zuerst.",
+          {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"},
+           "min_tage": {"type": "integer", "description": "nur Alarme, die seit mind. N Tagen offen sind"}}, [],
+          r_open_events),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}
