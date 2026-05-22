@@ -21,5 +21,8 @@ pyodbc>=5.1,<6.0               # FleetMgmt MSSQL (read-only)
 aiohttp>=3.10,<4.0             # Radix client (ported from KRAI)
 httpx>=0.27,<1.0              # Ollama / sync helpers
 
+# --- Agent ---
+sqlglot>=25.0,<28.0           # validate the free-text SQL fallback (SELECT/vw_* only)
+
 # --- Scheduling (nightly ETL + snapshots) ---
 APScheduler>=3.10,<4.0

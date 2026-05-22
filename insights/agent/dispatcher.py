@@ -6,7 +6,7 @@ the answer comes from the route (no hallucinated numbers).
 
 from __future__ import annotations
 
-from insights.agent import routes
+from insights.agent import routes, text_to_sql
 from insights.agent.ollama_client import OllamaClient
 from insights.agent.routes import AnswerCard
 from insights.core.config import get_settings
@@ -53,7 +53,12 @@ async def answer(question: str) -> AnswerCard:
             card.citation = {**card.citation, "route": name, "parameter": args}
             return card
 
-    # No tool chosen — return the model's free-text reply with low trust.
+    # No catalog route matched — try the guarded free-text SQL fallback.
+    card = await text_to_sql.generate_and_run(question, client)
+    if card is not None:
+        return card
+
+    # Last resort — the model's free-text reply with low trust.
     return AnswerCard(
         text=message.get("content") or "Dazu ist keine Auswertung verfügbar.",
         citation={"route": None, "vertrauen": 0.3},
