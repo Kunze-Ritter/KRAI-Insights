@@ -20,13 +20,15 @@ Other safety features:
 from __future__ import annotations
 
 import codecs
+import os
 import sys
 import time
 from pathlib import Path
 
-SRC = Path(r"C:\Transferr\sql.sql")
-OUT = Path(r"C:\Users\haast\Docker\KRAI-minimal\database\fleetmgmt\scripts\bigtables_data.sql")
-WARN = Path(r"C:\Users\haast\Docker\KRAI-minimal\database\fleetmgmt\bigtables_skipped.log")
+# Paths are env-overridable (defaults kept for ad-hoc use).
+SRC = Path(os.environ.get("FM_DUMP", r"C:\Transferr\sql.sql"))
+OUT = Path(os.environ.get("FM_BIGTABLES_SQL", r"database\fleetmgmt\work\bigtables_data.sql"))
+WARN = Path(os.environ.get("FM_BIGTABLES_WARN", r"database\fleetmgmt\work\bigtables_skipped.log"))
 
 KEEP_TABLES = {"ACCSNMPHISTORY", "ACCMIBCOUNTERVALUES"}
 

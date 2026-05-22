@@ -80,6 +80,8 @@ services:
       - ${FLEETMGMT_BACKUP_DIR:-./database/fleetmgmt/backups}:/backups:ro
       - ${FLEETMGMT_IMPORT_DIR:-./database/fleetmgmt/import}:/import:ro
       - ./database/fleetmgmt/scripts:/scripts:ro
+      - ./database/fleetmgmt/data:/data:ro       # missing_data.sql, schema dumps
+      - ./database/fleetmgmt/work:/work:ro       # re-import working set (nonbig.sql, TSVs)
       - ./database/fleetmgmt/logs:/logs
     healthcheck:
       test:

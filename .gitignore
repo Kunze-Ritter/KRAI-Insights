@@ -42,6 +42,9 @@ database/fleetmgmt/import/*
 # SQL data extracts pulled from the transfer (missing_data, schema dumps, samples)
 database/fleetmgmt/data/*
 !database/fleetmgmt/data/.gitkeep
+# Re-import working set (filtered SQL + multi-GB TSVs)
+database/fleetmgmt/work/*
+!database/fleetmgmt/work/.gitkeep
 
 # --- Streamlit ---
 .streamlit/secrets.toml

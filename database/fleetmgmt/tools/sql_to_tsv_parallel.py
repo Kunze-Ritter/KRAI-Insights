@@ -16,8 +16,8 @@ import sys
 import time
 from pathlib import Path
 
-IN = Path(r"C:\Users\haast\Docker\KRAI-minimal\database\fleetmgmt\scripts\bigtables_data.sql")
-OUT_DIR = Path(r"C:\Users\haast\Docker\KRAI-minimal\database\fleetmgmt\scripts")
+IN = Path(os.environ.get("FM_BIGTABLES_SQL", r"database\fleetmgmt\work\bigtables_data.sql"))
+OUT_DIR = Path(os.environ.get("FM_WORK", r"database\fleetmgmt\work"))
 TMP_DIR = OUT_DIR / "tsv_tmp"
 
 FIELD_SEP = "\x1f"
