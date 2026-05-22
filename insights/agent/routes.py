@@ -222,6 +222,40 @@ def r_part_due(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("snmp_predictions", sql))
 
 
+def r_material_install_check(args: dict[str, Any]) -> AnswerCard:
+    status_in = (args.get("status") or "woanders").lower()
+    suche = (args.get("suche") or "").strip()
+    if status_in.startswith(("woander", "falsch")):
+        status = "woanders_eingebaut"
+    elif status_in.startswith(("kein", "lager", "offen")):
+        status = "kein_einbau_gefunden"
+    elif status_in.startswith(("korrekt", "richtig")):
+        status = "korrekt"
+    else:
+        status = "woanders_eingebaut"
+    where = ["einbau_status = :st"]
+    params: dict[str, Any] = {"st": status}
+    if suche:
+        where.append("booked_serial ILIKE :s")
+        params["s"] = f"%{suche}%"
+    sql = (
+        "SELECT booked_serial AS gebucht_auf_seriennr, colorant AS farbe, lieferdatum, "
+        "description AS material, einbau_status "
+        f"FROM insights.vw_material_install_check WHERE {' AND '.join(where)} "
+        "ORDER BY lieferdatum DESC LIMIT 100"
+    )
+    df = _df(sql, params)
+    if status == "woanders_eingebaut":
+        txt = (f"{len(df)} Toner-Lieferung(en), die laut FleetMgmt auf einem ANDEREN Gerät desselben "
+               "Kunden eingebaut wurden als in Radix gebucht — Hinweis auf Falschbuchung/Lagerumlage.")
+    elif status == "kein_einbau_gefunden":
+        txt = (f"{len(df)} Toner-Lieferung(en) ohne passenden FleetMgmt-Einbau "
+               "(noch auf Lager, kundeneigen oder noch nicht verbaut).")
+    else:
+        txt = f"{len(df)} Toner-Lieferung(en) korrekt am gebuchten Gerät eingebaut."
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_material_install_check", sql))
+
+
 _GAR_DESC = "Garantiefaelle oder Verhandlungs-Kandidaten (Teile unter Soll-Laufzeit), serial-belegt."
 _ART_DESC = "claim = Garantiefall, verhandlung = Kandidat"
 
@@ -265,6 +299,13 @@ REGISTRY: list[Route] = [
           "Geräte unter Vertrag, die keine Daten mehr melden — Abrechnung auf Schätz-Zählern.",
           {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
           r_billing_risk),
+    Route("material_einbau_pruefen",
+          "Prüft, wo ein in Radix gebuchter Toner laut FleetMgmt tatsächlich eingebaut wurde "
+          "(richtiges Gerät, anderes Gerät desselben Kunden = Falschbuchung, oder kein Einbau).",
+          {"status": {"type": "string", "enum": ["woanders", "kein_einbau", "korrekt"],
+                      "description": "woanders = Falschbuchung (Standard), kein_einbau = ohne Einbau, korrekt"},
+           "suche": {"type": "string", "description": "optionale gebuchte Geräte-Seriennummer"}}, [],
+          r_material_install_check),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}
