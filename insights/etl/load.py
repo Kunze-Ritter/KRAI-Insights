@@ -471,6 +471,27 @@ def load_shipping_addresses() -> int:
     return len(rows)
 
 
+_INSERT_COUNTER_MONTHLY = text(
+    """
+    INSERT INTO insights.device_counter_monthly (fleetmgmt_device_id, month, page_count)
+    VALUES (:fleetmgmt_device_id, :month, :page_count)
+    ON CONFLICT (fleetmgmt_device_id, month) DO UPDATE SET page_count = EXCLUDED.page_count
+    """
+)
+
+
+def load_counter_monthly() -> int:
+    """Snapshot-load the monthly page-counter timeline (truncate + reload)."""
+    total = 0
+    with insights_engine().begin() as conn:
+        conn.exec_driver_sql("TRUNCATE insights.device_counter_monthly")
+        for batch in _batched(fleetmgmt_extractor.fetch_counter_monthly(), _BATCH):
+            conn.execute(_INSERT_COUNTER_MONTHLY, list(batch))
+            total += len(batch)
+            logger.info("loaded counter-monthly rows (running total %d)", total)
+    return total
+
+
 def load_events(limit: int | None = None, since_days: int | None = None) -> int:
     """Load FleetMgmt printer/SNMP alert events into insights.fleet_events."""
     total = 0
@@ -759,13 +780,14 @@ if __name__ == "__main__":
     parser.add_argument("--customers", action="store_true", help="load Radix customer master (PII-safe)")
     parser.add_argument("--shipping", action="store_true", help="load Radix delivery addresses per customer")
     parser.add_argument("--events", action="store_true", help="load FleetMgmt alert events (ACCEVENTHISTORY)")
+    parser.add_argument("--counters", action="store_true", help="load monthly page-counter timeline")
     parser.add_argument("--events-since-days", type=int, default=None,
                         help="bound event load to the last N days (default: full history)")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
                   or args.contracts or args.costs or args.snmp or args.events
-                  or args.customers or args.shipping)
+                  or args.customers or args.shipping or args.counters)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -796,6 +818,9 @@ if __name__ == "__main__":
     if args.all or args.events:
         ev = load_events(since_days=args.events_since_days)
         logger.info("Fleet events loaded: %d events processed.", ev)
+    if args.all or args.counters:
+        cm = load_counter_monthly()
+        logger.info("Counter-monthly timeline loaded: %d rows.", cm)
     if args.costs:
         cst = crawl_costs(customer_limit=args.cost_limit)
         logger.info("Cost events loaded: %s", cst)

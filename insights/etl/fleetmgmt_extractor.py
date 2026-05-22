@@ -251,6 +251,31 @@ def fetch_events(limit: int | None = None, since_days: int | None = None) -> Ite
             yield rec
 
 
+# Monthly page-counter timeline per device (downsampled from 48M SNMP rows to
+# ~183k device-months). Lets us look up the device's page count at any date ->
+# spare-part lifetime in PAGES, not just days.
+_COUNTER_MONTHLY_SQL = """
+SELECT
+    DeviceId AS fleetmgmt_device_id,
+    DATEFROMPARTS(YEAR(TimeUTC), MONTH(TimeUTC), 1) AS month,
+    MAX(PageCount) AS page_count
+FROM ACCSNMPHISTORY
+WHERE PageCount > 0
+GROUP BY DeviceId, YEAR(TimeUTC), MONTH(TimeUTC)
+"""
+
+
+def fetch_counter_monthly() -> Iterator[dict[str, Any]]:
+    """Yield (device, month, max page_count) — the monthly counter timeline."""
+    with fleetmgmt_engine().connect() as conn:
+        for row in conn.execute(text(_COUNTER_MONTHLY_SQL)).mappings():
+            rec = dict(row)
+            m = rec.get("month")
+            if m is not None and hasattr(m, "date"):
+                rec["month"] = m.date()
+            yield rec
+
+
 def ping() -> bool:
     """Lightweight connectivity check against FleetMgmt MSSQL."""
     with fleetmgmt_engine().connect() as conn:

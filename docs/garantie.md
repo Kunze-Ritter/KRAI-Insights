@@ -117,11 +117,22 @@ Mainboards, …). Die Logik ist anders:
    (auffällig kurze Standzeit, z. B. ein Modell, dessen Walzen im Median nach
    ~50 Tagen getauscht werden).
 
-**Grenzen / To-do:** Standzeit aktuell in **Tagen** (Zählerstand beim Einbau ließe
-sich aus der Ticket-/Zähler-Historie ergänzen → Standzeit in Seiten). Teiltyp wird
-per Stichwort aus der Artikelbeschreibung erkannt; „sonstige" ist noch ein großer
-Topf (Klassifikation verfeinerbar). Paarung über gleiche `article_code` — ein
-Nachfolger-Teil mit neuer Artikelnummer wird (noch) nicht gepaart.
+**Standzeit in Seiten:** Zusätzlich zu Tagen wird die Standzeit in **Seiten**
+berechnet — aus einer Monats-Zählerstand-Zeitleiste je Gerät
+(`device_counter_monthly`, aus FleetMgmt-SNMP). Seitenstand beim nächsten Tausch −
+Seitenstand beim Einbau = gelaufene Seiten. Beispiele (Median): KM C759 Trommel
+~304.000 Seiten, C754e ~210.000, C450i ~80.000.
+
+**Grenzen / To-do:**
+- Seiten-Treffer aktuell ~8 % (exakter Monats-Treffer; fehlt der Zählerstand im
+  Einbau- oder Tausch-Monat, bleibt die Seitenzahl leer). Verbesserbar durch
+  Interpolation auf den nächstgelegenen Monat.
+- Teiltyp per Stichwort erkannt; „sonstige" ist noch ein großer Topf.
+- Paarung über gleiche `article_code` — ein Nachfolger-Teil mit neuer Artikelnummer
+  wird (noch) nicht gepaart.
+- **Ticket-Langtext (Ausführungsbeschreibung):** enthält **Personennamen** (z. B.
+  „Herr X nicht erreicht") und ist damit **PII** — wird NICHT roh gespeichert. Nur
+  strukturierte, nicht-personenbezogene Felder (Datum, Status, Teil) sind nutzbar.
 
 ### Zwei getrennte Garantie-Ströme (Radix GAR)
 

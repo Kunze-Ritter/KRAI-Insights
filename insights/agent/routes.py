@@ -400,7 +400,7 @@ def r_part_early_failures(args: dict[str, Any]) -> AnswerCard:
     sql = (
         "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
         "device_serial AS seriennummer, teiltyp, description AS teil, einbau_datum, erneut_getauscht, "
-        "standzeit_tage FROM insights.vw_part_early_failures "
+        "standzeit_tage, standzeit_seiten FROM insights.vw_part_early_failures "
         f"WHERE {' AND '.join(where)} ORDER BY standzeit_tage ASC LIMIT 100"
     )
     df = _df(sql, params)
@@ -422,12 +422,13 @@ def r_part_lifetime(args: dict[str, Any]) -> AnswerCard:
         params["t"] = f"%{teiltyp}%"
     sql = (
         "SELECT hersteller, modell, teiltyp, stichproben, geraete, median_standzeit_tage, "
-        "schnitt_standzeit_tage FROM insights.vw_part_lifetime_stats "
+        "median_standzeit_seiten FROM insights.vw_part_lifetime_stats "
         f"WHERE {' AND '.join(where)} ORDER BY median_standzeit_tage ASC LIMIT 50"
     )
     df = _df(sql, params)
-    txt = (f"Reale Ersatzteil-Standzeit je Modell und Teiltyp ({len(df)} Kombinationen, ab 5 Wechseln). "
-           "Niedrige Median-Standzeit = störanfälliges Teil/Modell (PM-Vorhersage + Reklamation).")
+    txt = (f"Reale Ersatzteil-Standzeit je Modell und Teiltyp ({len(df)} Kombinationen, ab 5 Wechseln) — "
+           "Median in Tagen und (wo Zählerdaten vorliegen) in Seiten. Niedrige Standzeit = störanfälliges "
+           "Teil/Modell (PM-Vorhersage + Reklamation).")
     return AnswerCard(text=txt, data=df, citation=_cite("vw_part_lifetime_stats", sql))
 
 
