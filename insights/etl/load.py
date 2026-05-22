@@ -29,6 +29,7 @@ from insights.core.db import insights_engine
 from insights.core.logging import get_logger
 from insights.etl import fleetmgmt_extractor, krai_pm_extractor
 from insights.etl.radix import RadixAuthManager, RadixDataClient
+from insights.etl.radix.models import RadixContract
 
 logger = get_logger(__name__)
 
@@ -341,15 +342,112 @@ def load_error_codes(limit: int | None = None) -> int:
     return total
 
 
+_UPSERT_CONTRACT = text(
+    """
+    INSERT INTO insights.device_contracts (
+        radix_contract_id, device_id, radix_serialnumber_id, radix_customer_id,
+        code, contract_type, valid_from, valid_until, is_auto_renewal, is_done
+    ) VALUES (
+        :radix_contract_id, :device_id, :radix_serialnumber_id, :radix_customer_id,
+        :code, :contract_type, :valid_from, :valid_until, :is_auto_renewal, :is_done
+    )
+    ON CONFLICT (radix_contract_id, radix_serialnumber_id) DO UPDATE SET
+        device_id         = EXCLUDED.device_id,
+        radix_customer_id = EXCLUDED.radix_customer_id,
+        code              = EXCLUDED.code,
+        contract_type     = EXCLUDED.contract_type,
+        valid_from        = EXCLUDED.valid_from,
+        valid_until       = EXCLUDED.valid_until,
+        is_auto_renewal   = EXCLUDED.is_auto_renewal,
+        is_done           = EXCLUDED.is_done,
+        ingested_at       = now()
+    """
+)
+_UPDATE_DEVICE_CONTRACT_FLAGS = text(
+    """
+    UPDATE insights.devices_unified d SET
+        contract_active = EXISTS (
+            SELECT 1 FROM insights.device_contracts c
+            WHERE c.device_id = d.id AND c.valid_from <= current_date AND c.valid_until >= current_date
+        ),
+        contract_end = (SELECT max(c.valid_until) FROM insights.device_contracts c WHERE c.device_id = d.id),
+        updated_at = now()
+    WHERE d.radix_serialnumber_id IS NOT NULL
+    """
+)
+
+
+async def _pull_contracts(targets: list[tuple[str, str]]) -> list[tuple[str, str, dict[str, Any]]]:
+    """Fetch contracts per device (bounded concurrency)."""
+    auth = RadixAuthManager.from_settings(get_settings())
+    sem = asyncio.Semaphore(15)
+    rows: list[tuple[str, str, dict[str, Any]]] = []
+    async with RadixDataClient(auth) as client:
+        async def one(device_id: str, snid: str) -> None:
+            async with sem:
+                try:
+                    data = await client.get_serialnumber_contracts(snid)
+                except Exception as exc:  # skip a device, keep crawling
+                    logger.warning("contract fetch failed for %s: %s", snid, exc)
+                    return
+                for contract in data:
+                    rows.append((device_id, snid, contract))
+
+        await asyncio.gather(*(one(d, s) for d, s in targets))
+    return rows
+
+
+def enrich_contracts_from_radix() -> dict[str, int]:
+    """Crawl Radix contracts per device into device_contracts; set contract flags."""
+    with insights_engine().connect() as conn:
+        targets = [
+            (str(r[0]), r[1])
+            for r in conn.execute(
+                text(
+                    "SELECT id, radix_serialnumber_id FROM insights.devices_unified "
+                    "WHERE radix_serialnumber_id IS NOT NULL"
+                )
+            ).all()
+        ]
+    raw = asyncio.run(_pull_contracts(targets))
+    deduped: dict[tuple[str, str], dict[str, Any]] = {}
+    for device_id, snid, contract in raw:
+        try:
+            m = RadixContract.model_validate(contract)
+        except Exception:
+            continue
+        deduped[(m.id, snid)] = {
+            "radix_contract_id": m.id,
+            "device_id": device_id,
+            "radix_serialnumber_id": snid,
+            "radix_customer_id": m.customer_id,
+            "code": m.code,
+            "contract_type": m.description,
+            "valid_from": m.valid_from.date() if m.valid_from else None,
+            "valid_until": m.valid_until.date() if m.valid_until else None,
+            "is_auto_renewal": m.is_automatic_renewal,
+            "is_done": m.is_done,
+        }
+    params = list(deduped.values())
+    with insights_engine().begin() as conn:
+        for batch in _batched(params, _BATCH):
+            conn.execute(_UPSERT_CONTRACT, batch)
+        conn.execute(_UPDATE_DEVICE_CONTRACT_FLAGS)
+        active = conn.execute(text("SELECT count(*) FROM insights.devices_unified WHERE contract_active")).scalar()
+    logger.info("contracts loaded: %d rows; %d devices currently under contract", len(params), active)
+    return {"contracts": len(params), "active_devices": active or 0}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Insights ETL load")
     parser.add_argument("--radix", action="store_true", help="enrich existing devices from Radix")
     parser.add_argument("--vbm", action="store_true", help="load VBM lifecycle events (ACCMARKERREFILL)")
     parser.add_argument("--models", action="store_true", help="seed model_catalog + aliases")
     parser.add_argument("--errorcodes", action="store_true", help="materialise KRAI error codes")
+    parser.add_argument("--contracts", action="store_true", help="crawl Radix contracts per device")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
-    only_flags = args.radix or args.vbm or args.models or args.errorcodes
+    only_flags = args.radix or args.vbm or args.models or args.errorcodes or args.contracts
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -365,3 +463,6 @@ if __name__ == "__main__":
     if args.all or args.errorcodes:
         e = load_error_codes()
         logger.info("Error-code reference loaded: %d codes.", e)
+    if args.all or args.contracts:
+        ctr = enrich_contracts_from_radix()
+        logger.info("Contracts loaded: %s", ctr)
