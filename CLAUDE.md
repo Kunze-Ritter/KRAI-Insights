@@ -40,9 +40,13 @@ Run app-side things inside the running container; lint/tests via the local `.ven
 docker exec krai-insights-app python scripts/migrate.py            # apply pending
 docker exec krai-insights-app python scripts/migrate.py --status   # applied vs pending
 
-# ETL
+# ETL (flags: --radix --vbm --models --errorcodes --contracts --costs --snmp --events --customers --shipping --all)
 docker exec krai-insights-app python -m insights.etl.load          # FleetMgmt -> devices_unified
 docker exec krai-insights-app python scripts/radix_login_check.py  # Radix auth + read smoke
+
+# Nightly scheduler (opt-in service; daily 02:00 + weekly Sun 03:00 UTC, read-only crawls)
+docker compose --profile scheduler up -d scheduler                 # run on schedule
+docker exec krai-insights-app python -m insights.etl.scheduler --once daily   # run a pipeline now
 
 # Lint + tests (local venv — ruff/pytest are dev-only)
 & "C:\Github\KRAI-Insights\.venv\Scripts\python.exe" -m ruff check insights

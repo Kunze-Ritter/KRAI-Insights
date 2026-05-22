@@ -97,6 +97,32 @@ services:
       - default        # same internal net as the app
       - krai-shared    # let KRAI services reach FleetMgmt by name again
 
+  # Optional — nightly ETL scheduler (keeps the Insights cache fresh from the
+  # read-only sources). Opt-in so it never runs source crawls unexpectedly:
+  #   docker compose --profile scheduler up -d scheduler
+  # Cadence (UTC) via SCHED_DAILY_HOUR / SCHED_WEEKLY_HOUR / SCHED_WEEKLY_DOW.
+  scheduler:
+    build: .
+    image: krai-insights-app
+    container_name: krai-insights-scheduler
+    restart: unless-stopped
+    profiles: ["scheduler"]
+    command: ["python", "-m", "insights.etl.scheduler"]
+    env_file: .env
+    environment:
+      INSIGHTS_DB_HOST: insights-postgres
+      INSIGHTS_DB_PORT: 5432
+    depends_on:
+      insights-postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./:/app
+    networks:
+      - default
+      - krai-shared
+
   # Optional — local LLM for the KI-Agent (Phase 5). Enable with:
   #   docker compose --profile agent up -d ollama
   ollama:
