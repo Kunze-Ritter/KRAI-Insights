@@ -46,6 +46,7 @@ SELECT
     -- IP). '0.0.0.0' is a placeholder -> NULL; real IPs and hostnames are kept.
     NULLIF(NULLIF(d.IPAddress, ''), '0.0.0.0') AS printer_ip,
     NULLIF(d.MACAddress, '') AS mac_address,
+    NULLIF(d.SysName, '') AS hostname,
     d.Created              AS created,
     d.Deactivated          AS deactivated,
     d.Deleted              AS deleted,

@@ -53,10 +53,10 @@ def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
         "SELECT manufacturer_serial AS seriennummer, radix_device_number AS radix_id, "
         "customer_name AS kunde, customer_city AS ort, manufacturer_canonical AS hersteller, "
         "model_display AS modell, device_status AS status, telemetry_stale_days AS tage_ohne_meldung, "
-        "printer_ip AS ip_adresse, mac_address AS mac_adresse "
+        "hostname, printer_ip AS ip_adresse, mac_address AS mac_adresse "
         "FROM insights.vw_device_lookup "
         "WHERE manufacturer_serial ILIKE :q OR radix_device_number = :exact "
-        "OR customer_name ILIKE :q OR model_display ILIKE :q OR printer_ip ILIKE :q "
+        "OR customer_name ILIKE :q OR model_display ILIKE :q OR printer_ip ILIKE :q OR hostname ILIKE :q "
         "ORDER BY (device_status = 'live') DESC LIMIT 25"
     )
     df = _df(sql, {"q": f"%{q}%", "exact": q})
@@ -67,6 +67,8 @@ def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
         d = df.iloc[0]
         txt = (f"Gerät {d['seriennummer']} (Radix-ID {d['radix_id']}): {d['hersteller']} {d['modell']}, "
                f"Kunde {d['kunde']} ({d['ort']}), Status {d['status']}.")
+        if d["hostname"]:
+            txt += f" Hostname {d['hostname']}."
         if d["ip_adresse"]:
             txt += f" IP {d['ip_adresse']}"
             if d["mac_adresse"]:
