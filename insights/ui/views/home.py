@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 from insights.core.config import get_settings
 from insights.core.db import insights_engine
@@ -9,6 +10,12 @@ from insights.ui.links import doc
 from sqlalchemy import text
 
 settings = get_settings()
+
+
+@st.cache_data(ttl=300)
+def frame(sql: str) -> pd.DataFrame:
+    with insights_engine().connect() as conn:
+        return pd.DataFrame(conn.execute(text(sql)).mappings().all())
 
 
 def _eur(n: float | int) -> str:
@@ -71,6 +78,21 @@ st.caption(
 st.markdown(f"**Wichtig:** Die Summe ist historisch (~9 Jahre); heute einreichbar ist nur das jüngste "
             f"Zeitfenster. Methodik, Restwert-Modell und Zeitfenster: [Doku Garantie]({doc('garantie.md')}).")
 
+with st.expander("💡 Woher die Ersparnis kommt — nach Material"):
+    mat = frame("SELECT material, art, garantiefaelle, restwert_summe, verhandlung "
+                "FROM insights.vw_warranty_by_material")
+    if not mat.empty:
+        mat["geschaetzt_eur"] = (mat["restwert_summe"].fillna(0) * preis).round().astype(int)
+        mat = mat.rename(columns={
+            "material": "Material", "art": "Art", "garantiefaelle": "Garantiefälle",
+            "restwert_summe": "Restwert-Summe", "verhandlung": "Verhandlung",
+            "geschaetzt_eur": "geschätzt € (Toner-Basis)",
+        })
+        st.dataframe(mat, width="stretch", hide_index=True)
+        st.caption("Der €-Wert basiert auf dem mittleren Tonerpreis — für Toner belastbar, bei Teilen "
+                   "(kein Toner) nur grobe Orientierung (echte Teilepreise fehlen). Teil-kein-Toner = "
+                   "CRU-Teile wie Resttonerbehälter, Fixiereinheit, Transfer — keine farblosen Toner.")
+
 st.divider()
 
 # --- Service & Datenqualität ------------------------------------------------
@@ -92,6 +114,28 @@ s5.metric("Auffällige Geräte", _de(int(k.get("problem_geraete") or 0)),
 st.caption(f"📖 Methodik: [Datenqualität & Abgleich]({doc('datenqualitaet.md')}) · "
            f"[Ersatzteile/Garantie]({doc('garantie.md', '6-ersatzteile-nicht-nur-toner')}) · "
            f"[Kennzahlen-Glossar]({doc('kennzahlen.md')})")
+
+with st.expander("🔄 Falschzuordnungen / Datenfehler zum Korrigieren"):
+    mm = frame(
+        "SELECT 'Kundenzuordnung FleetMgmt vs Radix' AS art, count(*) n "
+        "FROM insights.vw_customer_device_mismatch WHERE abgleich='abweichung' "
+        "UNION ALL SELECT 'Toner woanders eingebaut', count(*) "
+        "FROM insights.vw_material_install_check WHERE einbau_status='woanders_eingebaut' "
+        "UNION ALL SELECT 'Teilewechsel Fake-Verdacht', count(*) "
+        "FROM insights.vw_vbm_validation WHERE validierung='verdacht_fake'"
+    )
+    if not mm.empty:
+        st.dataframe(mm.rename(columns={"art": "Art der Abweichung", "n": "Anzahl"}),
+                     width="stretch", hide_index=True)
+    st.caption("Details + Listen: Seite **Datenqualität & Abgleich** (Kunden-Abgleich, Material-Einbau, "
+               "Teilewechsel-Validierung). Beispiele — abweichende Kundenzuordnung:")
+    bsp = frame(
+        "SELECT device_serial AS seriennummer, fleet_kunde AS kunde_fleet, radix_kunde AS kunde_radix, "
+        "subnetz_passt_zu AS ip_beleg FROM insights.vw_customer_device_mismatch "
+        "WHERE abgleich='abweichung' AND subnetz_passt_zu IN ('fleet','radix') LIMIT 10"
+    )
+    if not bsp.empty:
+        st.dataframe(bsp, width="stretch", hide_index=True)
 
 st.divider()
 

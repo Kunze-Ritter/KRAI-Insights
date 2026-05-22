@@ -122,7 +122,9 @@ with tab_garantie:
         params["q"] = f"%{such.strip()}%"
     df = frame(
         "SELECT customer_name, manufacturer_canonical, model_display, device_serial, radix_device_number, "
-        "colorant, cartridge_serial, installed_on, removed_on, age_days, pages, rated, pct_of_oem, warranty_class "
+        "CASE WHEN colorant IS NOT NULL AND colorant <> '' THEN 'Toner' ELSE 'Teil (kein Toner)' END AS art, "
+        "lower(NULLIF(colorant, '')) AS colorant, marker_name, "
+        "cartridge_serial, installed_on, removed_on, age_days, pages, rated, pct_of_oem, warranty_class "
         f"FROM insights.vw_warranty_assessment WHERE {' AND '.join(clauses)} "
         "ORDER BY (cartridge_serial IS NOT NULL) DESC, pct_of_oem ASC LIMIT 500",
         params,
@@ -131,7 +133,8 @@ with tab_garantie:
         df["warranty_class"] = df["warranty_class"].map(WARRANTY_LABEL).fillna(df["warranty_class"])
         df = df.rename(columns={
             "customer_name": "Kunde", "manufacturer_canonical": "Hersteller", "model_display": "Modell",
-            "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID", "colorant": "Farbe",
+            "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",
+            "art": "Art", "colorant": "Farbe", "marker_name": "Material/Teil",
             "cartridge_serial": "Material-Seriennummer", "installed_on": "Eingebaut", "removed_on": "Gewechselt",
             "age_days": "Standzeit (Tage)", "pages": "Gelaufene Seiten", "rated": "Hersteller-Soll",
             "pct_of_oem": "% vom Soll", "warranty_class": "Bewertung",
