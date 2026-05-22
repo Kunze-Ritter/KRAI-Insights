@@ -54,3 +54,7 @@ database/fleetmgmt/work/*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# --- Claude Code (local settings only; shared config may be committed) ---
+.claude/settings.local.json
+.claude/*.local.json

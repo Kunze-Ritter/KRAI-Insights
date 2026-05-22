@@ -1,0 +1,89 @@
+# CLAUDE.md — krai-insights
+
+Operational guide for working in this repo. Keep this file updated when architecture, commands, or key facts change.
+
+## What this is
+
+**krai-insights** = a standalone profitability & warranty analytics system that fuses three **read-only** sources into its own **Insights PostgreSQL**, queryable via a Streamlit UI and a local Ollama chat agent. It surfaces money: warranty claims to recover, OEM-vs-real toner yield, billing risk, profitability, predictive maintenance, and a technician error-code assistant.
+
+- **Sources (READ-ONLY):** FleetMgmt MSSQL (docuform), Radix RxPlusService REST API (Infominds), KRAI PostgreSQL (`krai_*`).
+- **Own DB:** `insights` schema in `krai-insights-postgres` — a **derived, disposable cache / materialized-view layer**, never a new source of truth. Every row carries `source_systems` + `ingested_at` and is rebuildable from sources.
+
+The authoritative design + phasing lives in the approved plan: `C:\Users\haast\.claude\plans\pr-fe-bitte-ob-die-memoized-hennessy.md`. Long-term project memory: `C:\Users\haast\.claude\projects\C--Github-KRAI-Insights\memory\`.
+
+## CRITICAL guardrails
+
+- **Never `docker compose down -v`** — it deletes the 62M-row FleetMgmt volume AND `insights_pgdata`. Use plain `down` to stop.
+- **Sources are strictly read-only:** SELECT-only against MSSQL/KRAI-PG, GET-only against Radix. Never DDL/DML/POST to a source. We only write to `insights.*`.
+- **No PII (DSGVO):** never extract or store email, person names (contacts), phone, credentials, or IP. Company name + location (city) are OK; employees are pseudonymous (`employee_id`, no name). Extractors use explicit column whitelists (never `SELECT *` into the cache); Radix Pydantic models drop PII on validation. A schema PII-scan is part of verification.
+- **All timestamps are UTC** (`TIMESTAMPTZ`). FleetMgmt server runs on UTC; use `ACCSNMPHISTORY.TimeUTC`; Radix returns `Z`. (Ruff enforces pyupgrade → use `datetime.UTC`, not `timezone.utc`.)
+- **Radix `/api/activity` hangs unfiltered** — always scope by `CustomerId` or `TicketId` and paginate (`Take`/`Skip`). Fleet-wide crawl is a scheduled job, not a live chat call.
+
+## Source systems
+
+| Source | Container / Endpoint | DB / scope | Notes |
+|---|---|---|---|
+| FleetMgmt MSSQL | `krai-fleetmgmt-mssql` (host:1433) | `DevFleetMgmt`, login `krai_readonly` | 119 tables, 62,000,143 rows |
+| Insights PG (RW) | `krai-insights-postgres` (host:5433) | `krai_insights`, schema `insights` | the only DB we write |
+| KRAI PG | `krai-postgres-prod` (shared net) | `krai`, schema `krai_pm` (+ `krai_core`, `krai_intelligence`) | enrichment only; `krai_pm` mostly empty |
+| Radix API | `https://radix.kunze-ritter.de/IM.RxPlusService.Api` | OpenAPI v26.12.0, 94 GET routes | JWT auto-refresh (`RadixAuthManager`) |
+| Ollama | `krai-ollama-prod` (shared net) | `qwen2.5-coder:7b` | local LLM for the agent (Phase 4) |
+
+Credentials live in `.env` (gitignored). Inside Docker, the app reaches sources by container name / `host.docker.internal`.
+
+## Key commands
+
+Run app-side things inside the running container; lint/tests via the local `.venv` (dev deps aren't in the prod image).
+
+```powershell
+# Migrations (plain SQL, checksum-tracked, idempotent)
+docker exec krai-insights-app python scripts/migrate.py            # apply pending
+docker exec krai-insights-app python scripts/migrate.py --status   # applied vs pending
+
+# ETL
+docker exec krai-insights-app python -m insights.etl.load          # FleetMgmt -> devices_unified
+docker exec krai-insights-app python scripts/radix_login_check.py  # Radix auth + read smoke
+
+# Lint + tests (local venv — ruff/pytest are dev-only)
+& "C:\Github\KRAI-Insights\.venv\Scripts\python.exe" -m ruff check insights
+& "C:\Github\KRAI-Insights\.venv\Scripts\python.exe" -m pytest -q
+
+# Ad-hoc FleetMgmt query (read-only)
+docker exec krai-fleetmgmt-mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U krai_readonly -P '<see .env>' -C -d DevFleetMgmt -h -1 -W -Q "SELECT 1"
+
+# UI: http://localhost:8501  (Streamlit; live code mount auto-reloads)
+```
+
+## Data model & fusion spine
+
+- **Device join key (hard, exact):** FleetMgmt `ACCDEVICES.SerialNo` == Radix `serialnumber.numberManufactor`. Serial is NOT unique in raw FleetMgmt (372 dups) → `devices_unified` keys on `fleetmgmt_device_id`; serial is a non-unique match key; dups → `match_review_queue`.
+- **Identifiers kept (agent can search by any):** `manufacturer_serial`, `radix_device_number` (Radix `serialnumber.number`, the staff search id), `fleetmgmt_device_id` (`ACCDEVICES.Id`), `internal_id` (regex from `Location`).
+- **Device → customer (FleetMgmt):** `ACCDEVICES.SubmitterId → ACCUSERS.Id` (`Name` = company, non-PII; `DeviceManagerId` = the MSP "KunzeRitter", not the customer). Vendor: `VendorId → ACCDEVICEVENDORS.Vendor`.
+- **`device_status`** ∈ live | silent | never_reported | deactivated | deleted. "Active" = data transfer within **60 days** (`ACCDEVICES.LastDataTransferDate`). Reality: of 11,950, only ~6,400 are live (~5,100 silent) — the admin "active" flag (11,815) overstates the fleet ~2×. KPIs default to `live`; PM keeps inactive history.
+- **Models:** canonical = KRAI `krai_core` (`products.model_number/series/article_code`[empty]); OEM code = Radix `article.model` (e.g. `AA7R021`); FleetMgmt has only display name. Serial-join gives ground-truth name↔code pairs → `model_catalog` + `model_aliases`.
+- **Money gaps:** material/labor € only from Radix (`/activity/sparepartprice`,`/time`). **Click prices (revenue) are NOT in any accessible system** (`ACCCONTRACTS.PageCharge*` 100% empty, Radix none) → need a user-supplied `config/contract_pricing.yaml`. Warranty fields empty → derive from install + 365d + per-mfr overrides.
+
+Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catalog, model_aliases, match_review_queue), `003` (serial non-unique + `vw_device_lookup`).
+
+## Code layout
+
+- `insights/core/` — `config.py` (pydantic-settings, all source URLs), `db.py` (SQLAlchemy engines), `logging.py`.
+- `insights/etl/` — `fleetmgmt_extractor.py`, `krai_pm_extractor.py`, `radix_extractor.py`, `load.py`; `radix/` (`auth.py` [JWT, works — don't touch], `client.py`, `models.py` [PII-dropping]).
+- `insights/matching/`, `insights/scoring/`, `insights/agent/` (Phase 4), `insights/ui/` (Streamlit).
+- `db/migrations/NNN_*.sql` (applied by `scripts/migrate.py`). `config/*.yaml`.
+
+## Conventions
+
+- Plain sequential SQL migrations (portable back into KRAI later), not ORM auto-migration.
+- Pydantic v2 (`model_config = ConfigDict(...)`), `from __future__ import annotations`, type hints.
+- Ruff is configured (pyupgrade etc.) — keep `ruff check` clean.
+- Commit only when asked; if on `main`, branch first. Co-author trailer per repo policy.
+
+## Status (2026-05-22)
+
+R0 (Radix client rewrite) done. Phase 1 in progress:
+- `devices_unified` populated: 11,950 FleetMgmt devices; `vw_device_lookup` live (search by serial / Radix-ID / customer / model).
+- Streamlit Device-Inventory page (`insights/ui/pages/1_Device_Inventory.py`) wired to the view.
+- **Radix device enrichment done** (`load.py enrich_devices_from_radix`): 8,864 of 11,261 serial-bearing devices matched (~79%) → `radix_device_number`, `manufacturer_model_code` (OEM code), `production_date`, `radix_customer_id`; search-by-Radix-ID works. Non-sensitive only.
+
+Next: `device_matcher` (internal_id fallback + dup-serial → review), model-catalog seed (OEM code → KRAI `article_code` backfill list). **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.

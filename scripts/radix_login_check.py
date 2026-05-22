@@ -45,7 +45,12 @@ async def main() -> int:
     try:
         async with RadixDataClient(auth) as client:
             states = await client.get_activity_states()
-        print(f"[OK] Reached Radix API - {len(states)} activity states returned.")
+            customers = await client.get_customers(take=1)
+            serials = await client.get_serialnumbers(take=1)
+        print(
+            f"[OK] Reached Radix API - activity_states={len(states)}, "
+            f"customers(probe)={len(customers)}, serialnumbers(probe)={len(serials)}."
+        )
     except Exception as exc:
         print(f"[WARN] Token OK but data request failed: {exc}")
         return 1
