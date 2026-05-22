@@ -82,7 +82,9 @@ def migrate() -> None:
         sql = path.read_text(encoding="utf-8")
         logger.info("Applying %s ...", path.name)
         with insights_engine().begin() as conn:
-            conn.exec_driver_sql(sql)
+            # Migrations take no bind params; double any literal '%' so psycopg
+            # does not treat it as a placeholder (e.g. '%' in comments or LIKE).
+            conn.exec_driver_sql(sql.replace("%", "%%"))
             conn.execute(
                 text(
                     "INSERT INTO insights.schema_migrations (filename, checksum) "

@@ -63,7 +63,7 @@ docker exec krai-fleetmgmt-mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U k
 - **Models:** canonical = KRAI `krai_core` (`products.model_number/series/article_code`[empty]); OEM code = Radix `article.model` (e.g. `AA7R021`); FleetMgmt has only display name. Serial-join gives ground-truth name↔code pairs → `model_catalog` + `model_aliases`.
 - **Money gaps:** material/labor € only from Radix (`/activity/sparepartprice`,`/time`). **Click prices (revenue) are NOT in any accessible system** (`ACCCONTRACTS.PageCharge*` 100% empty, Radix none) → need a user-supplied `config/contract_pricing.yaml`. Warranty fields empty → derive from install + 365d + per-mfr overrides.
 
-Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catalog, model_aliases, match_review_queue), `003` (serial non-unique + `vw_device_lookup`).
+Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catalog, model_aliases, match_review_queue), `003` (serial non-unique + `vw_device_lookup`), `004` (vbm_lifecycle_events + `vw_vbm_lifecycle` + `vw_toner_yield_vs_oem`), `005` (widen coverage cols), `006` (fix yield view).
 
 ## Code layout
 
@@ -74,7 +74,7 @@ Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catal
 
 ## Conventions
 
-- Plain sequential SQL migrations (portable back into KRAI later), not ORM auto-migration.
+- Plain sequential SQL migrations (portable back into KRAI later), not ORM auto-migration. Migrations take **no bind params**; the runner doubles literal `%` so it's safe in comments/LIKE. A view that depends on a column blocks `ALTER ... TYPE` → drop + recreate the view in the same migration.
 - Pydantic v2 (`model_config = ConfigDict(...)`), `from __future__ import annotations`, type hints.
 - Ruff is configured (pyupgrade etc.) — keep `ruff check` clean.
 - Commit only when asked; if on `main`, branch first. Co-author trailer per repo policy.
@@ -86,4 +86,6 @@ R0 (Radix client rewrite) done. Phase 1 in progress:
 - Streamlit Device-Inventory page (`insights/ui/pages/1_Device_Inventory.py`) wired to the view.
 - **Radix device enrichment done** (`load.py enrich_devices_from_radix`): 8,864 of 11,261 serial-bearing devices matched (~79%) → `radix_device_number`, `manufacturer_model_code` (OEM code), `production_date`, `radix_customer_id`; search-by-Radix-ID works. Non-sensitive only.
 
-Next: `device_matcher` (internal_id fallback + dup-serial → review), model-catalog seed (OEM code → KRAI `article_code` backfill list). **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.
+**Phase 2 (VBM-Lifecycle) started:** `vbm_lifecycle_events` loaded (199,170 events from ACCMARKERREFILL; `load.py --vbm`). `vw_vbm_lifecycle` classifies real_new_cartridge (112,813) / no_serial (68,666) / reinsert_same (17,691) + `likely_false_report` (29,237) via window over device×colorant. `vw_toner_yield_vs_oem` reproduces documented OEM-vs-real yields (E40040 ~104 pct, X58045 high); **fleet avg ~127 pct of OEM** across 53 model/colorant combos. Cartridge serial captured for warranty evidence + false-report detection.
+
+Next: `device_matcher` (internal_id fallback + dup-serial → review), model-catalog seed (OEM code → KRAI `article_code` backfill list); Phase 2 cont. = part_instances + warranty_claims (serial-backed PDF evidence) + error_code_ref. **Radix contract/cost import is gated on a pending user governance decision** (see `todo.md`). In-app chat agent = Phase 4 (Ollama; `krai-ollama-prod` was stopped at last check). See the plan + memory for the full roadmap.

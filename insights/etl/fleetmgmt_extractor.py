@@ -116,6 +116,53 @@ def fetch_devices(limit: int | None = None) -> Iterator[dict[str, Any]]:
             yield rec
 
 
+# VBM / consumable change events. Non-PII; `CreatedBy` deliberately excluded.
+_MARKER_SQL = """
+SELECT
+    pkId                  AS source_pkid,
+    DeviceId              AS fleetmgmt_device_id,
+    SerialNo              AS cartridge_serial,
+    Colorant              AS colorant,
+    Name                  AS marker_name,
+    PageCount             AS page_count_at_event,
+    lSumBW                AS sum_bw,
+    lSumColor             AS sum_color,
+    lDiffPageCount        AS pages_since_previous,
+    lDiffSumBW            AS diff_bw,
+    lDiffSumColor         AS diff_color,
+    CoveragePercentIs     AS coverage_real_pct,
+    CoveragePercentTarget AS oem_target_coverage_pct,
+    CoveragePagesTarget   AS oem_target_pages,
+    RemainingPages        AS remaining_pages,
+    RemainingDays         AS remaining_days,
+    SnmpLevelNew          AS snmp_level_new,
+    lValueLast            AS level_last,
+    lValueNew             AS level_new,
+    ContractId            AS contract_id,
+    Refilled              AS occurred_at
+FROM ACCMARKERREFILL
+"""
+
+
+def fetch_marker_refills(limit: int | None = None) -> Iterator[dict[str, Any]]:
+    """Yield consumable/CRU change events from ACCMARKERREFILL (read-only).
+
+    Includes the cartridge serial + real pages run + OEM target — the basis for
+    false-report detection, OEM-vs-real yield, and serial-backed warranty evidence.
+    `occurred_at` (Refilled) is normalised to UTC.
+    """
+    sql = _MARKER_SQL
+    if limit:
+        sql = sql.replace("SELECT\n", f"SELECT TOP ({int(limit)})\n", 1)
+    with fleetmgmt_engine().connect() as conn:
+        for row in conn.execute(text(sql)).mappings():
+            rec = dict(row)
+            occ = rec.get("occurred_at")
+            if occ is not None and occ.tzinfo is None:
+                rec["occurred_at"] = occ.replace(tzinfo=UTC)
+            yield rec
+
+
 def ping() -> bool:
     """Lightweight connectivity check against FleetMgmt MSSQL."""
     with fleetmgmt_engine().connect() as conn:

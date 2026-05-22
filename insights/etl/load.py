@@ -91,6 +91,33 @@ _UPDATE_RADIX = text(
     """
 )
 
+_UPSERT_VBM = text(
+    """
+    INSERT INTO insights.vbm_lifecycle_events (
+        source_pkid, fleetmgmt_device_id, cartridge_serial, colorant, marker_name,
+        page_count_at_event, sum_bw, sum_color, pages_since_previous, diff_bw, diff_color,
+        coverage_real_pct, oem_target_coverage_pct, oem_target_pages, remaining_pages,
+        remaining_days, snmp_level_new, level_last, level_new, contract_id, occurred_at
+    ) VALUES (
+        :source_pkid, :fleetmgmt_device_id, :cartridge_serial, :colorant, :marker_name,
+        :page_count_at_event, :sum_bw, :sum_color, :pages_since_previous, :diff_bw, :diff_color,
+        :coverage_real_pct, :oem_target_coverage_pct, :oem_target_pages, :remaining_pages,
+        :remaining_days, :snmp_level_new, :level_last, :level_new, :contract_id, :occurred_at
+    )
+    ON CONFLICT (source_pkid) DO UPDATE SET
+        cartridge_serial        = EXCLUDED.cartridge_serial,
+        pages_since_previous    = EXCLUDED.pages_since_previous,
+        coverage_real_pct       = EXCLUDED.coverage_real_pct,
+        oem_target_pages        = EXCLUDED.oem_target_pages,
+        oem_target_coverage_pct = EXCLUDED.oem_target_coverage_pct,
+        snmp_level_new          = EXCLUDED.snmp_level_new,
+        level_last              = EXCLUDED.level_last,
+        level_new               = EXCLUDED.level_new,
+        occurred_at             = EXCLUDED.occurred_at,
+        ingested_at             = now()
+    """
+)
+
 
 def _batched(it: Iterable[dict[str, Any]], size: int) -> Iterator[list[dict[str, Any]]]:
     iterator = iter(it)
@@ -192,14 +219,30 @@ def enrich_devices_from_radix() -> int:
     return matched
 
 
+def load_vbm_lifecycle(limit: int | None = None) -> int:
+    """Load FleetMgmt consumable/CRU change events into vbm_lifecycle_events."""
+    total = 0
+    with insights_engine().begin() as conn:
+        for batch in _batched(fleetmgmt_extractor.fetch_marker_refills(limit=limit), _BATCH):
+            conn.execute(_UPSERT_VBM, list(batch))
+            total += len(batch)
+            logger.info("upserted VBM lifecycle events (running total %d)", total)
+    return total
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Insights ETL load")
     parser.add_argument("--radix", action="store_true", help="enrich existing devices from Radix")
-    parser.add_argument("--all", action="store_true", help="FleetMgmt load + Radix enrichment")
+    parser.add_argument("--vbm", action="store_true", help="load VBM lifecycle events (ACCMARKERREFILL)")
+    parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix enrichment + VBM")
     args = parser.parse_args()
-    if args.all or not args.radix:
+    only_flags = args.radix or args.vbm
+    if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
     if args.all or args.radix:
         m = enrich_devices_from_radix()
         logger.info("Radix enrichment complete: %d devices matched.", m)
+    if args.all or args.vbm:
+        v = load_vbm_lifecycle()
+        logger.info("VBM lifecycle load complete: %d events processed.", v)
