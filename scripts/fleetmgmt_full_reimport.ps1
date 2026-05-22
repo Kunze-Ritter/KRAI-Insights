@@ -77,12 +77,13 @@ Log "STEP C2: load nonbig.sql (schema + small/mid, ~hours)"
 docker exec $ctr /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $PW -C -d DevFleetMgmt -i /work/nonbig.sql -m 11 -t 0 *>> $log
 
 Log "STEP C3: BULK ACCMIBCOUNTERVALUES"
-Sql 'DevFleetMgmt' "BULK INSERT [dbo].[ACCMIBCOUNTERVALUES] FROM '/work/accmibcountervalues.tsv' WITH (FIELDTERMINATOR='0x1F', ROWTERMINATOR='0x1E0x0A', DATAFILETYPE='char', TABLOCK, KEEPNULLS, BATCHSIZE=100000, MAXERRORS=1000, KEEPIDENTITY);" *>> $log
+Sql 'DevFleetMgmt' "BULK INSERT [dbo].[ACCMIBCOUNTERVALUES] FROM '/work/accmibcountervalues.tsv' WITH (FIELDTERMINATOR='0x1f', ROWTERMINATOR='0x1e0a', DATAFILETYPE='char', TABLOCK, KEEPNULLS, BATCHSIZE=100000, MAXERRORS=1000, KEEPIDENTITY);" *>> $log
 Log "STEP C4: BULK ACCSNMPHISTORY"
-Sql 'DevFleetMgmt' "BULK INSERT [dbo].[ACCSNMPHISTORY] FROM '/work/accsnmphistory.tsv' WITH (FIELDTERMINATOR='0x1F', ROWTERMINATOR='0x1E0x0A', DATAFILETYPE='char', TABLOCK, KEEPNULLS, BATCHSIZE=100000, MAXERRORS=1000);" *>> $log
+Sql 'DevFleetMgmt' "BULK INSERT [dbo].[ACCSNMPHISTORY] FROM '/work/accsnmphistory.tsv' WITH (FIELDTERMINATOR='0x1f', ROWTERMINATOR='0x1e0a', DATAFILETYPE='char', TABLOCK, KEEPNULLS, BATCHSIZE=100000, MAXERRORS=1000);" *>> $log
 
-Log "STEP C5: missing_data.sql"
-docker exec $ctr /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $PW -C -d DevFleetMgmt -i /data/missing_data.sql -m 11 -t 0 *>> $log
+# NOTE: missing_data.sql is intentionally NOT applied here -- nonbig.sql already
+# loads the full small/mid dataset, so missing_data duplicates rows (PK violations).
+# It is only relevant when starting from a partial import.
 
 Log "STEP C6: recreate krai_readonly"
 Sql 'master' "IF NOT EXISTS(SELECT 1 FROM sys.sql_logins WHERE name='krai_readonly') CREATE LOGIN krai_readonly WITH PASSWORD='KraiInsightsRO!2026', CHECK_POLICY=ON;" *>> $log
@@ -92,5 +93,5 @@ Log "STEP C7: verify"
 $tables = (Sql 'DevFleetMgmt' "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.tables;") -join ''
 $totnew = (Sql 'DevFleetMgmt' "SET NOCOUNT ON; SELECT SUM(p.rows) FROM sys.partitions p JOIN sys.tables t ON t.object_id=p.object_id WHERE p.index_id IN (0,1);") -join ''
 Log "RESULT: tables=$tables  total_rows=$totnew  (baseline 119 / 62000209)"
-Sql 'DevFleetMgmt' "SET NOCOUNT ON; SELECT t.name, SUM(p.rows) FROM sys.tables t JOIN sys.partitions p ON p.object_id=t.object_id AND p.index_id IN (0,1) GROUP BY t.name ORDER BY SUM(p.rows) DESC;" @('-s',',','-o','/work/reimport_counts.csv')
+Sql 'DevFleetMgmt' "SET NOCOUNT ON; SELECT t.name, SUM(p.rows) FROM sys.tables t JOIN sys.partitions p ON p.object_id=t.object_id AND p.index_id IN (0,1) GROUP BY t.name ORDER BY SUM(p.rows) DESC;" @('-s',',','-o','/logs/reimport_counts.csv')
 Log "===== FleetMgmt full re-import DONE ====="
