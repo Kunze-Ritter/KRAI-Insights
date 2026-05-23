@@ -49,6 +49,7 @@ if not k:
 
 claims = int(k.get("garantie_claims") or 0)
 claims_serial = int(k.get("garantie_claims_serial") or 0)
+claims_toner = int(k.get("garantie_claims_toner") or 0)
 preis = int(k.get("toner_preis_median") or 0)
 restwert = float(k.get("claim_restwert_summe") or 0)
 schaetz = round(restwert * preis)
@@ -56,11 +57,11 @@ schaetz = round(restwert * preis)
 # --- Hero: Geld zurückholen (Garantie) -------------------------------------
 st.subheader("💰 Geld zurückholen — Garantie")
 c1, c2, c3 = st.columns(3)
-c1.metric("Geschätztes Rückhol-Potenzial", _eur(schaetz),
-          help=f"Realistisch: erstattet wird nur die NICHT verbrauchte Restlaufzeit. "
-               f"Summe der Restlaufzeit-Anteile ({_de(restwert)}) x ~{preis} € mittlerer Tonerpreis. "
-               "Grobe Schätzung (wenige Preise bekannt) — dient der Größenordnung. "
-               f"Methodik: {doc('garantie.md', '4-was-ist-der--wert-restwert-modell')}")
+c1.metric("Geschätztes Rückhol-Potenzial (Toner)", _eur(schaetz),
+          help=f"Nur TONER ({_de(claims_toner)} Fälle): erstattet wird die nicht verbrauchte Restlaufzeit "
+               f"(Summe der Restanteile {_de(restwert)}) x ~{preis} € mittlerer Tonerpreis. Ersatzteile "
+               "haben andere Preise und sind hier NICHT enthalten (separat unter Ersatzteile). "
+               f"Grobe Schätzung. Methodik: {doc('garantie.md', '4-was-ist-der--wert-restwert-modell')}")
 c2.metric("Reklamierbare Garantiefälle", _de(claims),
           help="Material innerhalb 1 Jahr UND unter 70 % der Soll-Laufleistung; Fehlmeldungen "
                "(Wiedereinsetzen / Tür auf-zu) sind herausgerechnet.")

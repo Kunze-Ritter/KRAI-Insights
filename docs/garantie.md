@@ -93,6 +93,26 @@ Monate). Die genaue Frist hängt vom Hersteller ab — deshalb prüfen wir die
 Zeitraum je Hersteller abzuleiten und den „noch einreichbar"-Schnitt sauber zu
 setzen.
 
+## 5b. Datenqualität & bekannte Grenzen (Audit 2026-05-23)
+
+- **Seriennummer = Ersatzpatrone, nicht die ausgefallene (Off-by-one, IN PRÜFUNG).**
+  `ACCMARKERREFILL` erfasst beim Wechsel die *neue* Patrone (Füllstand→100 %),
+  `lDiffPageCount` ist aber die Laufzeit der *alten*. Die aktuelle Formel hängt die
+  Serial der neuen Patrone an den Ausfall. Beleg über Zähler-Arithmetik vorhanden;
+  wird an einem realen FleetMgmt-Fall verifiziert, dann auf `prev_serial`
+  (ausgefallene Patrone) umgestellt. **Bis dahin: Serial = „beim Wechsel gesehene
+  Nummer", nicht garantiert die der defekten Einheit.**
+- **Same-Day-Artefakte entfernt** (Migration 041): Zyklen mit `age_days = 0` (Ein-
+  und Ausbau am selben Tag = simultane Mehrfach-Meldung) zählen als `artifact`.
+- **86 % der VBM-Events ohne Hersteller-Soll** → Garantie-Bewertung nur für ~14 %
+  möglich; die Garantiefälle stammen aus diesem Teil.
+- **€ nur für Toner** (Migration 042): das Rückhol-Potenzial nutzt den mittleren
+  Tonerpreis und gilt daher nur für Toner-Fälle; CRU-Teile separat (andere Preise).
+- **Verrauschte Rohdaten** (viele 0-Seiten-Events + Duplikate) — durch `<100 Seiten`
+  und `age=0` aus den Garantiefällen herausgehalten.
+
+Regressionstests in `tests/test_warranty_invariants.py` sichern diese Regeln ab.
+
 ## 6. Ersatzteile (nicht nur Toner!)
 
 Garantie betrifft **nicht nur Verbrauchsmaterial** (Toner, Resttonerbehälter),
