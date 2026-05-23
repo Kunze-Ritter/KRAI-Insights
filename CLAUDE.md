@@ -82,7 +82,7 @@ Migrations applied: `001` (schema+pgcrypto), `002` (devices_unified, model_catal
 - Pydantic v2 (`model_config = ConfigDict(...)`), `from __future__ import annotations`, type hints.
 - Ruff is configured (pyupgrade etc.) — keep `ruff check` clean.
 - **Document in parallel (user rule).** Every meaningful finding/decision (the *why*) goes into `docs/` (German, user-facing) as it happens — esp. analytics logic, data quirks, and known gaps. Dashboard metrics link to the relevant doc via tooltips/captions (`insights/ui/links.py` → GitHub `docs/`). Keep `docs/` in sync when logic changes.
-- Commit only when asked; if on `main`, branch first. Co-author trailer per repo policy.
+- Commit only when asked. **Small/low-risk changes may commit + push directly to `main`** (bug fixes, UI tweaks, a single view/route, docs). **Larger changes go on a feature branch + PR** (new migrations with data impact, multi-file refactors, schema/PII changes, anything risky or worth review). When unsure, ask. Co-author trailer per repo policy.
 
 ## Status (2026-05-22)
 
