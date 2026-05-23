@@ -28,7 +28,7 @@ from insights.core.config import get_settings
 from insights.core.db import insights_engine
 from insights.core.logging import get_logger
 from insights.core.pii import pseudonymize_contacts
-from insights.etl import fleetmgmt_extractor, krai_pm_extractor
+from insights.etl import fleetmgmt_extractor, krai_pm_extractor, vbm_crawler_extractor
 from insights.etl.radix import RadixAuthManager, RadixDataClient
 from insights.etl.radix.models import RadixContract, RadixCustomer, RadixShippingAddress, RadixWorkTime
 
@@ -615,15 +615,113 @@ _INSERT_PART_LIFETIME = text(
 
 
 def load_part_lifetimes() -> int:
-    """Materialise KRAI OEM part lifetimes (krai_pm.part_lifetimes) into insights."""
+    """Materialise KRAI OEM part lifetimes (krai_pm.part_lifetimes) into insights.
+
+    Loescht **nur** Zeilen, deren `source` mit `km_excel` beginnt - so bleiben
+    Eintraege aus anderen Quellen (z. B. `vbm_crawler:*`) unberuehrt. Das
+    ersetzt das alte unbedingte TRUNCATE seit Migration 047 die natuerliche
+    UNIQUE-Constraint (manufacturer, part_number) traegt.
+    """
     total = 0
     with insights_engine().begin() as conn:
-        conn.exec_driver_sql("TRUNCATE insights.part_lifetime_oem")
+        conn.execute(
+            text("DELETE FROM insights.part_lifetime_oem WHERE source LIKE 'km_excel%'")
+        )
         for batch in _batched(krai_pm_extractor.fetch_part_lifetimes(), _BATCH):
             conn.execute(_INSERT_PART_LIFETIME, list(batch))
             total += len(batch)
     logger.info("part_lifetime_oem loaded: %d OEM lifetimes", total)
     return total
+
+
+# -- VBM-Crawler-Import (KRAI-Crawler-VBM Schwesterrepo) -------------------------
+# Verwendet UPSERT auf (manufacturer, part_number) - sauberer als TRUNCATE und
+# laesst KM-Daten in derselben Tabelle unberuehrt.
+
+_UPSERT_VBM_LIFETIME = text(
+    """
+    INSERT INTO insights.part_lifetime_oem (
+        manufacturer, part_category, part_number, nominal_lifetime_pages,
+        color_channel, model_family, source,
+        supply_color, yield_variant, iso_standard, source_url
+    ) VALUES (
+        :manufacturer, :part_category, :part_number, :nominal_lifetime_pages,
+        :color_channel, :model_family, :source,
+        :supply_color, :yield_variant, :iso_standard, :source_url
+    )
+    ON CONFLICT (manufacturer, part_number)
+        WHERE source LIKE 'vbm_crawler:%'
+    DO UPDATE SET
+        part_category          = EXCLUDED.part_category,
+        nominal_lifetime_pages = EXCLUDED.nominal_lifetime_pages,
+        color_channel          = EXCLUDED.color_channel,
+        model_family           = EXCLUDED.model_family,
+        source                 = EXCLUDED.source,
+        supply_color           = EXCLUDED.supply_color,
+        yield_variant          = EXCLUDED.yield_variant,
+        iso_standard           = EXCLUDED.iso_standard,
+        source_url             = EXCLUDED.source_url,
+        ingested_at            = now()
+    """
+)
+
+_UPSERT_VBM_COMPAT = text(
+    """
+    INSERT INTO insights.part_compatibility (
+        manufacturer, part_number, color_channel,
+        printer_model, vendor_printer_id, printer_url, source
+    ) VALUES (
+        :manufacturer, :part_number, :color_channel,
+        :printer_model, :vendor_printer_id, :printer_url, :source
+    )
+    ON CONFLICT (manufacturer, part_number, printer_model) DO UPDATE SET
+        color_channel     = EXCLUDED.color_channel,
+        vendor_printer_id = EXCLUDED.vendor_printer_id,
+        printer_url       = EXCLUDED.printer_url,
+        source            = EXCLUDED.source,
+        ingested_at       = now()
+    """
+)
+
+
+def load_vbm_crawler() -> tuple[int, int]:
+    """Importiert das KRAI-Crawler-VBM Output in part_lifetime_oem + part_compatibility.
+
+    Loescht selektiv nur eigene Quellen (`source LIKE 'vbm_crawler:%'`) und
+    schreibt anschliessend per UPSERT - so sind Wiederholungen idempotent und
+    parallele Quellen (KM-Excel etc.) bleiben unberuehrt.
+    """
+    total_lifetimes = 0
+    total_compat = 0
+    with insights_engine().begin() as conn:
+        conn.execute(
+            text(
+                "DELETE FROM insights.part_lifetime_oem "
+                "WHERE source LIKE 'vbm_crawler:%'"
+            )
+        )
+        for batch in _batched(
+            vbm_crawler_extractor.fetch_vbm_crawler_lifetimes(), _BATCH
+        ):
+            conn.execute(_UPSERT_VBM_LIFETIME, list(batch))
+            total_lifetimes += len(batch)
+        conn.execute(
+            text(
+                "DELETE FROM insights.part_compatibility "
+                "WHERE source LIKE 'vbm_crawler:%'"
+            )
+        )
+        for batch in _batched(
+            vbm_crawler_extractor.fetch_vbm_crawler_compatibility(), _BATCH
+        ):
+            conn.execute(_UPSERT_VBM_COMPAT, list(batch))
+            total_compat += len(batch)
+    logger.info(
+        "VBM-Crawler-Import: %d Reichweiten, %d Kompatibilitaets-Zeilen",
+        total_lifetimes,
+        total_compat,
+    )
+    return total_lifetimes, total_compat
 
 
 def load_error_codes(limit: int | None = None) -> int:
@@ -870,6 +968,12 @@ if __name__ == "__main__":
     parser.add_argument("--models", action="store_true", help="seed model_catalog + aliases")
     parser.add_argument("--errorcodes", action="store_true", help="materialise KRAI error codes")
     parser.add_argument("--partlifetimes", action="store_true", help="materialise KRAI OEM part lifetimes")
+    parser.add_argument(
+        "--vbm-crawler",
+        dest="vbm_crawler",
+        action="store_true",
+        help="import KRAI-Crawler-VBM JSON output into part_lifetime_oem + part_compatibility",
+    )
     parser.add_argument("--contracts", action="store_true", help="crawl Radix contracts per device")
     parser.add_argument("--costs", action="store_true", help="crawl Radix material+labour costs")
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
@@ -887,7 +991,7 @@ if __name__ == "__main__":
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
                   or args.contracts or args.costs or args.snmp or args.events
                   or args.customers or args.shipping or args.counters or args.tickets
-                  or args.partlifetimes)
+                  or args.partlifetimes or args.vbm_crawler)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -909,6 +1013,11 @@ if __name__ == "__main__":
     if args.all or args.partlifetimes:
         pl = load_part_lifetimes()
         logger.info("OEM part lifetimes loaded: %d.", pl)
+    if args.all or args.vbm_crawler:
+        vl, vc = load_vbm_crawler()
+        logger.info(
+            "VBM crawler import: %d lifetimes, %d compatibility rows.", vl, vc
+        )
     if args.all or args.contracts:
         ctr = enrich_contracts_from_radix()
         logger.info("Contracts loaded: %s", ctr)

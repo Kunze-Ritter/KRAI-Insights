@@ -54,6 +54,11 @@ services:
       - "host.docker.internal:host-gateway"   # reach host-based source DBs
     volumes:
       - ./:/app    # live code mount for dev; drop in prod image builds
+      # VBM-Crawler-Schnittstelle: read-only Mount des output/-Ordners des
+      # Schwester-Repos KRAI-Crawler-VBM. Default zeigt auf .cache/vbm-crawler/
+      # (sibling-frei, funktioniert immer); per VBM_CRAWLER_OUTPUT_HOST in .env
+      # lässt sich der echte Crawler-Output direkt mounten.
+      - ${VBM_CRAWLER_OUTPUT_HOST:-./.cache/vbm-crawler}:/srv/vbm-crawler:ro
     networks:
       - default        # krai-insights internal (insights-postgres, fleetmgmt)
       - krai-shared    # reach krai-postgres-prod (krai_pm) + krai-ollama-prod
@@ -119,6 +124,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./:/app
+      - ${VBM_CRAWLER_OUTPUT_HOST:-./.cache/vbm-crawler}:/srv/vbm-crawler:ro
     networks:
       - default
       - krai-shared
