@@ -9,23 +9,39 @@ belastbarem Nachweis.
 Pro Material-Lebenszyklus (eingebaut → gewechselt) bewerten wir **zwei** Achsen:
 
 - **Zeit:** Wie alt war das Teil beim Wechsel? (`age_days`)
-- **Laufleistung:** Wie viele Seiten hat es geschafft, im Vergleich zur
-  Hersteller-Soll-Laufleistung? (`pct_of_oem` = gelaufene Seiten / OEM-Soll)
+- **Gelieferte Tonermenge (deckungskorrigiert):** wie viel der Soll-**Tonermenge**
+  hat die Patrone geliefert? (`pct_of_oem`, siehe unten)
+
+**WICHTIG — Deckungskorrektur (5 %).** Das Hersteller-Soll (z. B. 20.000 Seiten)
+gilt bei **5 % Deckung** (ISO/IEC 19752). Druckt ein Kunde mit z. B. 8,5 % Deckung,
+liefert die Patrone bei **gleicher Tonermenge** weniger Seiten — das ist **kein**
+Frühausfall. Wir vergleichen daher nicht Seiten, sondern die gelieferte Tonermenge:
+
+```
+pct_of_oem (Toner) = gelaufene Seiten × reale Deckung / (Soll-Seiten × 5 %) × 100
+```
+
+Fehlt die reale Deckung (oder ist sie unplausibel >100 %), fällt die Bewertung auf
+den rohen Seiten-Wert zurück (`coverage_belegt = false`, schwächerer Nachweis).
 
 Daraus die Einordnung (Sicht `vw_warranty_assessment`):
 
 | Klasse | Bedingung | Bedeutung |
 |---|---|---|
-| **claim** (Garantiefall) | ≤ 365 Tage **und** < 70 % der Soll-Laufleistung | innerhalb Garantie früh ausgefallen → reklamieren |
-| **negotiation** (Verhandlung) | > 365 Tage **und** < 70 % der Soll | außerhalb Zeit, aber klar unter Soll → Hebel ggü. Hersteller |
-| **wear** (Verschleiß) | ≤ 365 Tage **und** ≥ Soll erreicht | normal verbraucht, kein Fall |
-| **normal** | sonst | unauffällig |
-| **artifact** | < 100 Seiten gelaufen | Sensor-Blip / Messartefakt (kein echter Zyklus) |
+| **claim** (Garantiefall) | ≤ 365 Tage **und** < 70 % der Soll-Tonermenge | innerhalb Garantie zu wenig Toner geliefert → reklamieren |
+| **negotiation** (Verhandlung) | > 365 Tage **und** < 70 % der Soll-Tonermenge | außerhalb Zeit, aber klar unter Soll → Hebel ggü. Hersteller |
+| **wear** (Verschleiß) | ≤ 365 Tage **und** ≥ 70 % geliefert | normal verbraucht, kein Fall |
+| **normal** | > 365 Tage **und** ≥ 70 % geliefert | unauffällig |
+| **artifact** | < 100 Seiten oder Ein-/Ausbau am selben Tag | Mess-/Logging-Artefakt |
 | **fehlmeldung** | Falschmeldung (siehe unten) | kein echter Wechsel |
 
-**Warum 70 %?** Ein Teil, das deutlich unter seiner Soll-Laufleistung ausfällt, ist
-glaubwürdig defekt. 70 % ist die Schwelle für „deutlich unter Soll"; sie filtert
-normale Streuung heraus.
+**Warum 70 %?** Eine Patrone, die deutlich unter ihrer Soll-Tonermenge ausfällt, ist
+glaubwürdig defekt. 70 % filtert normale Streuung. **Beispiel:** CAP2435126E2 lief
+11.597 Seiten (58 % der Soll-Seiten), aber bei 8,5 % Deckung = **99 % der Soll-
+Tonermenge** → KEIN Garantiefall (Vielnutzer, keine Reklamation).
+
+**Effekt der Deckungskorrektur:** Garantiefälle 2.839 → **1.185** (Vielnutzer raus,
+echte Niedrig-Deckungs-Ausfälle dazu); davon ~888 mit Deckungsbeleg.
 
 **Warum 1 Jahr?** Standard-Garantiezeit für Verbrauchsmaterial. Per Hersteller
 anpassbar.

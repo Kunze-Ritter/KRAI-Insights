@@ -97,11 +97,12 @@ with tab_yield:
     st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_garantie:
-    st.markdown("**Garantie-Bewertung je Material-Lebenszyklus (Zeit und Laufleistung).**")
+    st.markdown("**Garantie-Bewertung je Material-Lebenszyklus (Zeit und gelieferte Tonermenge).**")
     st.caption(
-        "Garantiefall = innerhalb 1 Jahr und deutlich unter Soll-Laufleistung. "
-        "Verhandlungs-Kandidat = älter als 1 Jahr, aber ebenfalls unter Soll. "
-        "Jeder Eintrag ist über die Material-Seriennummer belegt."
+        "Garantiefall = innerhalb 1 Jahr UND unter 70 % der Soll-TONERMENGE. Wichtig: das Hersteller-Soll "
+        "gilt bei 5 % Deckung — wer mit mehr Deckung druckt, bekommt weniger Seiten bei gleicher Tonermenge. "
+        "Deshalb wird deckungskorrigiert gerechnet (Spalte % vom Soll Toner); die Spalte % vom Soll Seiten ist "
+        "der unkorrigierte Rohwert. Deckung belegt = ja heißt: mit realer Deckung gerechnet (stärkster Nachweis)."
     )
     bewertung = st.multiselect(
         "Bewertung", options=["claim", "negotiation"], default=["claim", "negotiation"],
@@ -124,20 +125,24 @@ with tab_garantie:
         "SELECT customer_name, manufacturer_canonical, model_display, device_serial, radix_device_number, "
         "CASE WHEN colorant IS NOT NULL AND colorant <> '' THEN 'Toner' ELSE 'Teil (kein Toner)' END AS art, "
         "lower(NULLIF(colorant, '')) AS colorant, marker_name, "
-        "cartridge_serial, installed_on, removed_on, age_days, pages, rated, pct_of_oem, warranty_class "
+        "cartridge_serial, installed_on, removed_on, age_days, pages, rated, "
+        "pct_seiten_roh, coverage_real_pct, pct_of_oem, coverage_belegt, warranty_class "
         f"FROM insights.vw_warranty_assessment WHERE {' AND '.join(clauses)} "
         "ORDER BY (cartridge_serial IS NOT NULL) DESC, pct_of_oem ASC LIMIT 500",
         params,
     )
     if not df.empty:
         df["warranty_class"] = df["warranty_class"].map(WARRANTY_LABEL).fillna(df["warranty_class"])
+        df["coverage_belegt"] = df["coverage_belegt"].map({True: "ja", False: "nein"})
         df = df.rename(columns={
             "customer_name": "Kunde", "manufacturer_canonical": "Hersteller", "model_display": "Modell",
             "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",
             "art": "Art", "colorant": "Farbe", "marker_name": "Material/Teil",
             "cartridge_serial": "Material-Seriennummer", "installed_on": "Eingebaut", "removed_on": "Gewechselt",
             "age_days": "Standzeit (Tage)", "pages": "Gelaufene Seiten", "rated": "Hersteller-Soll",
-            "pct_of_oem": "% vom Soll", "warranty_class": "Bewertung",
+            "pct_seiten_roh": "% vom Soll (Seiten)", "coverage_real_pct": "reale Deckung %",
+            "pct_of_oem": "% vom Soll (Toner, deckungskorr.)", "coverage_belegt": "Deckung belegt",
+            "warranty_class": "Bewertung",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Eintrag/Einträge (max. 500)")
     st.dataframe(df, width="stretch", hide_index=True)

@@ -35,10 +35,14 @@ def test_no_claim_is_same_day():
 
 
 def test_claims_within_year_and_under_rated():
-    """Every claim: <=365 days AND < 70% of rated life AND >= 100 pages."""
+    """Every claim: <=365 days, >=100 pages, AND < 70% of rated TONER (coverage-adjusted).
+
+    pct_of_oem is the coverage-adjusted toner yield (migration 043), NOT raw pages —
+    a high-coverage customer printing fewer pages is not a warranty case.
+    """
     bad = _scalar(
         "SELECT count(*) FROM insights.vw_warranty_assessment WHERE warranty_class='claim' "
-        "AND NOT (age_days <= 365 AND pages >= 100 AND rated > 0 AND pages < rated * 0.7)"
+        "AND NOT (age_days BETWEEN 1 AND 365 AND pages >= 100 AND rated > 0 AND pct_of_oem < 70)"
     )
     assert bad == 0
 
@@ -46,7 +50,16 @@ def test_claims_within_year_and_under_rated():
 def test_negotiation_over_year_under_rated():
     bad = _scalar(
         "SELECT count(*) FROM insights.vw_warranty_assessment WHERE warranty_class='negotiation' "
-        "AND NOT (age_days > 365 AND rated > 0 AND pages < rated * 0.7)"
+        "AND NOT (age_days > 365 AND rated > 0 AND pct_of_oem < 70)"
+    )
+    assert bad == 0
+
+
+def test_high_coverage_not_a_claim():
+    """A cartridge that delivered >= 70% of rated toner (coverage-adjusted) is NOT a claim."""
+    bad = _scalar(
+        "SELECT count(*) FROM insights.vw_warranty_assessment "
+        "WHERE warranty_class IN ('claim', 'negotiation') AND coverage_belegt AND pct_of_oem >= 70"
     )
     assert bad == 0
 
