@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
 from insights.ui.links import doc
+from insights.ui.theme import bar, render_chart, setup_page
 from sqlalchemy import text
 
 VALID_LABEL = {
@@ -66,10 +67,10 @@ def kennzahlen() -> dict:
     return {"risiko": risiko, "fake": fake, "woanders": woanders, "kunde_abw": kunde_abw}
 
 
-st.title("🔍 Datenqualität & Abgleich")
-st.caption(
+setup_page(
+    "🔍 Datenqualität & Abgleich",
     "Flotten-Verwaltung und Service-System gegeneinander prüfen — für saubere Abrechnung, "
-    "korrekte Geräte-Zuordnung und weniger Toner-Fehlversand."
+    "korrekte Geräte-Zuordnung und weniger Toner-Fehlversand.",
 )
 st.caption(f"📖 Methodik & Begründung: [Doku Datenqualität & Abgleich]({doc('datenqualitaet.md')})")
 
@@ -113,6 +114,14 @@ with tab_risk:
 with tab_recon:
     st.markdown("**Flotten-Abgleich** — Meldestatus, Vertrag und Vorhandensein im Service-System je Gerät.")
     st.caption("Eine Wahrheit pro Gerät: Ist es aktiv? Steht es unter Vertrag? Ist es in Radix bekannt?")
+    _agg = frame("SELECT einordnung, count(*) AS n FROM insights.vw_fleet_reconciliation GROUP BY einordnung")
+    if not _agg.empty:
+        _agg["label"] = _agg["einordnung"].map(EINORDNUNG_LABEL).fillna(_agg["einordnung"])
+        render_chart(bar(
+            _agg, x="n", y="label",
+            labels={"n": "Geräte", "label": "Einordnung"},
+            title="Gesamte Flotte nach Einordnung",
+        ))
     optionen = list(EINORDNUNG_LABEL.keys())
     auswahl = st.multiselect(
         "Einordnung", options=optionen, default=optionen, format_func=lambda v: EINORDNUNG_LABEL.get(v, v)

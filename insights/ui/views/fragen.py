@@ -8,13 +8,14 @@ import streamlit as st
 from insights.agent import dispatcher
 from insights.agent.ollama_client import OllamaClient
 from insights.core.config import get_settings
+from insights.ui.theme import setup_page
 
 settings = get_settings()
 
-st.title("💬 Fragen")
-st.caption(
+setup_page(
+    "💬 Fragen",
     "Stelle eine Frage in normalem Deutsch — der Assistent wählt die passende "
-    "Auswertung, rechnet sie und antwortet mit Quellenangabe."
+    "Auswertung, rechnet sie und antwortet mit Quellenangabe.",
 )
 
 

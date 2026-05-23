@@ -7,6 +7,7 @@ import streamlit as st
 from insights.core.config import get_settings
 from insights.core.db import insights_engine
 from insights.ui.links import doc
+from insights.ui.theme import bar, render_chart, setup_page
 from sqlalchemy import text
 
 settings = get_settings()
@@ -36,8 +37,8 @@ def lagebericht() -> dict:
         return {}
 
 
-st.title("📊 KRAI Insights")
-st.caption("Was die Daten gerade hergeben — die wichtigsten Punkte zum Handeln. "
+setup_page("📊 KRAI Insights",
+           "Was die Daten gerade hergeben — die wichtigsten Punkte zum Handeln. "
            "Für konkrete Fragen den Assistenten (Seite Fragen) nutzen.")
 st.caption(f"📖 Wie die Zahlen entstehen und warum: [Dokumentation]({doc('README.md')}) "
            f"· [Datenquellen & Datenschutz]({doc('datenquellen.md')})")
@@ -86,6 +87,11 @@ with st.expander("💡 Woher die Ersparnis kommt — nach Material"):
         mat["geschaetzt_eur"] = (
             pd.to_numeric(mat["restwert_summe"], errors="coerce").fillna(0) * preis
         ).round().astype(int)
+        render_chart(bar(
+            mat, x="geschaetzt_eur", y="material", color="art", top=15,
+            labels={"geschaetzt_eur": "geschätzt € (Toner-Basis)", "material": "Material"},
+            title="Rückhol-Potenzial nach Material (€, Toner-Basis)",
+        ))
         mat = mat.rename(columns={
             "material": "Material", "art": "Art", "garantiefaelle": "Garantiefälle",
             "restwert_summe": "Restwert-Summe", "verhandlung": "Verhandlung",
@@ -135,6 +141,11 @@ with st.expander("🔄 Falschzuordnungen / Datenfehler zum Korrigieren"):
         "FROM insights.vw_vbm_validation WHERE validierung='verdacht_fake'"
     )
     if not mm.empty:
+        render_chart(bar(
+            mm, x="n", y="art",
+            labels={"n": "Anzahl", "art": "Art der Abweichung"},
+            title="Daten-Korrekturen nach Art",
+        ))
         st.dataframe(mm.rename(columns={"art": "Art der Abweichung", "n": "Anzahl"}),
                      width="stretch", hide_index=True)
     st.caption("Details + Listen: Seite **Datenqualität & Abgleich** (Kunden-Abgleich, Material-Einbau, "

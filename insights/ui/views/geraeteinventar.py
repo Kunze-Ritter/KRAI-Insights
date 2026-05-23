@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
+from insights.ui.theme import MUTED, POS, WARN, donut, render_chart, setup_page
 from sqlalchemy import text
 
 # Technische Status-Werte -> verständliche deutsche Bezeichnung.
@@ -78,8 +79,8 @@ def geraete(suche: str, status: list[str], limit: int) -> pd.DataFrame:
     return df
 
 
-st.title("🖨️ Geräte-Inventar")
-st.caption("Alle erfassten Drucksysteme mit Standort, Kunde, Modell und Meldestatus.")
+setup_page("🖨️ Geräte-Inventar",
+           "Alle erfassten Drucksysteme mit Standort, Kunde, Modell und Meldestatus.")
 
 total, nach_status = kennzahlen()
 c1, c2, c3, c4, c5 = st.columns(5)
@@ -89,6 +90,17 @@ c3.metric("Still (> 60 Tage)", f"{nach_status.get('silent', 0):,}".replace(",", 
 c4.metric("Nie gemeldet", f"{nach_status.get('never_reported', 0):,}".replace(",", "."))
 c5.metric("Deaktiviert / Gelöscht",
           f"{nach_status.get('deactivated', 0) + nach_status.get('deleted', 0):,}".replace(",", "."))
+
+_status_colors = {
+    "Aktiv (meldet)": POS, "Still (> 60 Tage)": WARN, "Nie gemeldet": MUTED,
+    "Deaktiviert": "#71717A", "Gelöscht": "#3F3F46",
+}
+_status_df = pd.DataFrame(
+    [{"status": STATUS_LABEL.get(s, s), "anzahl": int(n)} for s, n in nach_status.items() if n]
+)
+if not _status_df.empty:
+    render_chart(donut(_status_df, names="status", values="anzahl",
+                       color_map=_status_colors, title="Flotte nach Meldestatus"))
 
 st.caption(
     "Aktiv bedeutet: das Gerät hat in den letzten 60 Tagen Daten übermittelt. "

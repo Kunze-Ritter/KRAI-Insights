@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
 from insights.ui.links import doc
+from insights.ui.theme import bar, render_chart, setup_page
 from sqlalchemy import text
 
 EINSTUFUNG_LABEL = {
@@ -36,10 +37,10 @@ def kennzahlen() -> dict:
     return {"problem": problem, "spam": spam, "offen": offen}
 
 
-st.title("🚨 Service-Qualität")
-st.caption(
+setup_page(
+    "🚨 Service-Qualität",
     "Alarme der Drucksysteme aus der Flotten-Verwaltung (letzte 365 Tage). Hilft, "
-    "auffällige Geräte und störanfällige Modelle früh zu erkennen — bevor der Kunde anruft."
+    "auffällige Geräte und störanfällige Modelle früh zu erkennen — bevor der Kunde anruft.",
 )
 st.caption("📖 Was die Werte bedeuten: "
            f"[Kennzahlen-Glossar]({doc('kennzahlen.md', 'service-qualität')})")
@@ -90,6 +91,12 @@ with tab_mod:
         "FROM insights.vw_problem_models LIMIT 100"
     )
     if not df.empty:
+        render_chart(bar(
+            df, x="alarme_pro_geraet", y="modell", top=20,
+            hover_data=["hersteller", "geraete", "alarme_gesamt"],
+            labels={"alarme_pro_geraet": "Ø Alarme/Gerät", "modell": "Modell"},
+            title="Störanfälligste Modelle (Top 20)",
+        ))
         df = df.rename(columns={
             "hersteller": "Hersteller", "modell": "Modell", "geraete": "Geräte",
             "alarme_gesamt": "Alarme gesamt", "alarme_pro_geraet": "Ø Alarme/Gerät",
@@ -104,6 +111,12 @@ with tab_code:
         "FROM insights.vw_top_alert_codes LIMIT 100"
     )
     if not df.empty:
+        render_chart(bar(
+            df, x="alarme", y="alert_code", top=20,
+            hover_data=["bedeutung", "betroffene_geraete"],
+            labels={"alarme": "Alarme", "alert_code": "Code"},
+            title="Häufigste Alarm-Codes (Top 20)",
+        ))
         df = df.rename(columns={
             "alert_code": "Code", "bedeutung": "Bedeutung", "alarme": "Alarme",
             "betroffene_geraete": "Betroffene Geräte", "max_severity": "Max. Schweregrad",

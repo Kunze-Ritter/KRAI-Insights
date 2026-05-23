@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
 from insights.ui.links import doc
+from insights.ui.theme import NEG, POS, TONER, bar, line, render_chart, setup_page
 from sqlalchemy import text
 
 WARRANTY_LABEL = {
@@ -52,10 +53,10 @@ def frame(sql: str, params: dict | None = None) -> pd.DataFrame:
         return pd.DataFrame(conn.execute(text(sql), params or {}).mappings().all())
 
 
-st.title("🧪 Verbrauchsmaterial — Standzeiten & Garantie")
-st.caption(
+setup_page(
+    "🧪 Verbrauchsmaterial — Standzeiten & Garantie",
     "Verbrauchsmaterial (Toner, Trommeln, Wartungsteile): wie lange ein Teil tatsächlich "
-    "gehalten hat, im Vergleich zur Hersteller-Angabe — als Grundlage für Kalkulation und Garantie."
+    "gehalten hat, im Vergleich zur Hersteller-Angabe — als Grundlage für Kalkulation und Garantie.",
 )
 st.caption(f"📖 Garantie-Logik, Fehlmeldungs-Filter & Restwert-Modell: [Doku Garantie]({doc('garantie.md')})")
 
@@ -89,6 +90,15 @@ with tab_yield:
         {"c": farbe, "n": min_wechsel},
     )
     if not df.empty:
+        cd = df[["model_display", "avg_pct_of_oem"]].copy()
+        cd["avg_pct_of_oem"] = pd.to_numeric(cd["avg_pct_of_oem"], errors="coerce")
+        cd["Bewertung"] = (cd["avg_pct_of_oem"] >= 100).map({True: "≥ Soll", False: "< Soll"})
+        render_chart(bar(
+            cd, x="avg_pct_of_oem", y="model_display", color="Bewertung",
+            color_map={"≥ Soll": POS, "< Soll": NEG}, ref=100, ref_label="Soll 100 %", top=20,
+            labels={"avg_pct_of_oem": "Ø % vom Soll", "model_display": "Modell"},
+            title="Toner-Standzeit vs. Soll (Top 20 Modelle)",
+        ))
         df = df.rename(columns={
             "manufacturer_canonical": "Hersteller", "model_display": "Modell", "refills": "Wechsel",
             "devices": "Geräte", "avg_real_pages": "Ø echte Seiten",
@@ -162,6 +172,16 @@ with tab_geraet:
             {"q": q.strip()},
         )
         if not df.empty:
+            cd = df.copy()
+            cd["colorant"] = cd["colorant"].replace("", "Teil")
+            cd = cd.dropna(subset=["pct_of_oem"])
+            if not cd.empty:
+                render_chart(line(
+                    cd, x="datum", y="pct_of_oem", color="colorant", color_map=TONER,
+                    ref=100, ref_label="Soll 100 %",
+                    labels={"datum": "Datum", "pct_of_oem": "% vom Soll", "colorant": "Farbe"},
+                    title="Standzeit-Verlauf je Material (% vom Soll)",
+                ))
             df["classification"] = df["classification"].map(CLASS_LABEL).fillna(df["classification"])
             df["likely_false_report"] = df["likely_false_report"].map({True: "ja", False: "nein"})
             df = df.rename(columns={
