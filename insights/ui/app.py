@@ -24,6 +24,7 @@ pages = [
     st.Page("views/geraeteinventar.py", title="Geräte-Inventar", icon="🖨️"),
     st.Page("views/verbrauchsmaterial.py", title="Verbrauchsmaterial", icon="🧪"),
     st.Page("views/ersatzteile.py", title="Ersatzteile & Standzeit", icon="🔧"),
+    st.Page("views/deckung.py", title="Deckung & Kalkulation", icon="📈"),
     st.Page("views/kosten.py", title="Kosten & Verträge", icon="💶"),
     st.Page("views/servicequalitaet.py", title="Service-Qualität", icon="🚨"),
     st.Page("views/datenqualitaet.py", title="Datenqualität & Abgleich", icon="🔍"),

@@ -118,6 +118,13 @@ st.caption(f"📖 Methodik: [Datenqualität & Abgleich]({doc('datenqualitaet.md'
            f"[Ersatzteile/Garantie]({doc('garantie.md', '6-ersatzteile-nicht-nur-toner')}) · "
            f"[Kennzahlen-Glossar]({doc('kennzahlen.md')})")
 
+_cov = frame("SELECT count(*) FILTER (WHERE ueber_klickpreis_6pct) n "
+             "FROM insights.vw_coverage_by_customer")
+if not _cov.empty and int(_cov.iloc[0]["n"] or 0) > 0:
+    st.markdown(f"📈 **{int(_cov.iloc[0]['n'])} Kunden** drucken über **6 %** Deckung (Klickpreis-Annahme) → "
+                "mehr Tonerverbrauch als berechnet. Seite **Deckung & Kalkulation** (Nachberechnung + "
+                "Entwickler-Risiko bei hoher Deckung).")
+
 with st.expander("🔄 Falschzuordnungen / Datenfehler zum Korrigieren"):
     mm = frame(
         "SELECT 'Kundenzuordnung FleetMgmt vs Radix' AS art, count(*) n "
