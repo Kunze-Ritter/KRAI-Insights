@@ -95,13 +95,14 @@ setzen.
 
 ## 5b. Datenqualität & bekannte Grenzen (Audit 2026-05-23)
 
-- **Seriennummer = Ersatzpatrone, nicht die ausgefallene (Off-by-one, IN PRÜFUNG).**
-  `ACCMARKERREFILL` erfasst beim Wechsel die *neue* Patrone (Füllstand→100 %),
-  `lDiffPageCount` ist aber die Laufzeit der *alten*. Die aktuelle Formel hängt die
-  Serial der neuen Patrone an den Ausfall. Beleg über Zähler-Arithmetik vorhanden;
-  wird an einem realen FleetMgmt-Fall verifiziert, dann auf `prev_serial`
-  (ausgefallene Patrone) umgestellt. **Bis dahin: Serial = „beim Wechsel gesehene
-  Nummer", nicht garantiert die der defekten Einheit.**
+- **Seriennummer ist KORREKT (verifiziert 2026-05-23).** Ein anfänglicher
+  Off-by-one-Verdacht wurde an einem realen FleetMgmt-Fall widerlegt: Die
+  FleetMgmt-Meldung lautet „S/N **X** bei Füllstand 1 % ersetzt. Neue S/N erkannt:
+  **Y**" — d. h. `ACCMARKERREFILL.SerialNo` = die **ausgefallene/ersetzte** Patrone
+  (X), und `lDiffPageCount` = deren Laufzeit. Beide gehören zur selben Patrone; die
+  „neue" Serial (Y) wird korrekt NICHT verwendet. Beispiel: CAP2435126E2 lief
+  92.184→103.781 = 11.597 Seiten (58 % von 20.000) → Garantiefall, korrekt mit
+  CAP2435126E2 ausgewiesen. **Die serial-belegten Fälle nennen die richtige Patrone.**
 - **Same-Day-Artefakte entfernt** (Migration 041): Zyklen mit `age_days = 0` (Ein-
   und Ausbau am selben Tag = simultane Mehrfach-Meldung) zählen als `artifact`.
 - **86 % der VBM-Events ohne Hersteller-Soll** → Garantie-Bewertung nur für ~14 %
