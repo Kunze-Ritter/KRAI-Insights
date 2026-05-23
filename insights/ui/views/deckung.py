@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
 from insights.ui.links import doc
+from insights.ui.theme import bar, render_chart, scatter, setup_page
 from sqlalchemy import text
 
 
@@ -32,10 +33,10 @@ def kennzahlen() -> dict:
     return {"ueber6": ueber6, "kunden": kunden, "geraete6": geraete6, "ent": ent}
 
 
-st.title("📈 Deckung & Kalkulation")
-st.caption(
+setup_page(
+    "📈 Deckung & Kalkulation",
     "Reale Druck-Deckung (Tonerfläche pro Seite) je Kunde und Gerät. Der Klickpreis "
-    "kalkuliert mit ~6 % Deckung — Kunden darüber verbrauchen mehr Toner als berechnet."
+    "kalkuliert mit ~6 % Deckung — Kunden darüber verbrauchen mehr Toner als berechnet.",
 )
 st.caption(f"📖 Methodik (Klickpreis-6 %, Entwickler-Risiko): [Doku Deckung]({doc('deckung.md')}) · "
            f"[Garantie/Deckungskorrektur]({doc('garantie.md', '1-wann-ist-etwas-ein-garantiefall')})")
@@ -69,6 +70,13 @@ with tab_geraet:
         {"s": schwelle_g},
     )
     if not dfg.empty:
+        render_chart(scatter(
+            dfg, x="gedruckte_seiten", y="avg_deckung_pct",
+            ref_y=6, ref_label="Klickpreis 6 %", log_x=True,
+            labels={"gedruckte_seiten": "Gedruckte Seiten (log)", "avg_deckung_pct": "Ø Deckung %"},
+            hover_data=["customer_name", "model_display", "device_serial"],
+            title="Deckung je Gerät vs. gedruckte Seiten",
+        ))
         dfg = dfg.rename(columns={
             "customer_name": "Kunde", "customer_city": "Ort",
             "manufacturer_canonical": "Hersteller", "model_display": "Modell",
@@ -95,6 +103,12 @@ with tab_kunde:
         {"s": schwelle},
     )
     if not df.empty:
+        render_chart(bar(
+            df, x="avg_deckung_pct", y="customer_name", ref=6, ref_label="6 %", top=20,
+            labels={"avg_deckung_pct": "Ø Deckung %", "customer_name": "Kunde"},
+            hover_data=["customer_city", "geraete"],
+            title="Top-Kunden nach Deckung (Top 20)",
+        ))
         df = df.rename(columns={
             "customer_name": "Kunde", "customer_city": "Ort", "geraete": "Geräte",
             "gedruckte_seiten": "Gedruckte Seiten", "avg_deckung_pct": "Ø Deckung %",
@@ -116,6 +130,15 @@ with tab_ent:
         "ORDER BY avg_deckung_pct DESC NULLS LAST, standzeit_tage ASC LIMIT 500"
     )
     if not df.empty:
+        cdf = df.dropna(subset=["avg_deckung_pct", "standzeit_tage"])
+        if not cdf.empty:
+            render_chart(scatter(
+                cdf, x="avg_deckung_pct", y="standzeit_tage",
+                ref_x=5, ref_label="HP-Schwelle 5 %",
+                labels={"avg_deckung_pct": "Ø Deckung % (Gerät)", "standzeit_tage": "Standzeit (Tage)"},
+                hover_data=["model_display", "entwicklereinheit", "device_serial"],
+                title="Entwickler-Standzeit vs. Geräte-Deckung",
+            ))
         df = df.rename(columns={
             "customer_name": "Kunde", "manufacturer_canonical": "Hersteller", "model_display": "Modell",
             "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",

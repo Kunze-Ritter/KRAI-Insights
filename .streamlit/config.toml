@@ -1,0 +1,13 @@
+# KRAI Insights — globales Theme (cleaner shadcn/zinc-Look, hell + dark).
+# Wird beim Start gelesen → nach Änderungen App-Container neu starten.
+# Nutzer können zur Laufzeit über das Menü (Settings → Theme) auf Dark umschalten.
+
+[theme]
+base = "light"                        # Default-Modus
+primaryColor = "#6366F1"              # einzige Akzentfarbe (Indigo) — färbt Buttons, aktive Tabs, Slider
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F4F5"  # zinc-100 (Sidebar/Karten-Hintergrund)
+textColor = "#18181B"                 # zinc-900
+font = "sans serif"
+baseRadius = "0.75rem"                # runde Ecken (shadcn-typisch)
+borderColor = "#E4E4E7"               # zinc-200 — dezente Rahmen

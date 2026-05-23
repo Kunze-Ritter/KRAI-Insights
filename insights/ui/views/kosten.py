@@ -8,6 +8,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
+from insights.ui.theme import ACCENT, MUTED, bar, render_chart, setup_page
 from sqlalchemy import text
 
 COST_TYPE_LABEL = {"material": "Material", "labor": "Arbeit"}
@@ -19,10 +20,10 @@ def frame(sql: str, params: dict | None = None) -> pd.DataFrame:
         return pd.DataFrame(conn.execute(text(sql), params or {}).mappings().all())
 
 
-st.title("💶 Kosten & Verträge")
-st.caption(
+setup_page(
+    "💶 Kosten & Verträge",
     "Material- und Arbeitskosten aus dem Service-System sowie Vertragslaufzeiten. "
-    "Vertrag = vertraglich gedeckt, Aufwand = berechenbar, Garantie = auf Garantie."
+    "Vertrag = vertraglich gedeckt, Aufwand = berechenbar, Garantie = auf Garantie.",
 )
 
 tab_struktur, tab_kunde, tab_vertraege = st.tabs(
@@ -36,6 +37,14 @@ with tab_struktur:
         "FROM insights.vw_cost_by_invoicing ORDER BY lines DESC"
     )
     if not df.empty:
+        cd = df[df["cost_type"] == "material"].copy()
+        cd["material_eur"] = pd.to_numeric(cd["material_eur"], errors="coerce")
+        if not cd.empty:
+            render_chart(bar(
+                cd, x="material_eur", y="invoicing_type",
+                labels={"material_eur": "Material €", "invoicing_type": "Abrechnungsart"},
+                title="Materialkosten nach Abrechnungsart (€)",
+            ))
         df["cost_type"] = df["cost_type"].map(COST_TYPE_LABEL).fillna(df["cost_type"])
         df = df.rename(columns={
             "invoicing_type": "Abrechnungsart", "cost_type": "Art", "lines": "Positionen",
@@ -58,6 +67,26 @@ with tab_kunde:
     sql += "ORDER BY material_eur DESC NULLS LAST LIMIT 500"
     df = frame(sql, params)
     if not df.empty:
+        topc = df[["customer_name", "billable_material_eur", "contract_material_eur", "material_eur"]].copy()
+        for _c in ("billable_material_eur", "contract_material_eur", "material_eur"):
+            topc[_c] = pd.to_numeric(topc[_c], errors="coerce")
+        topc = topc.nlargest(15, "material_eur")
+        if not topc.empty:
+            longc = topc.melt(
+                id_vars="customer_name",
+                value_vars=["billable_material_eur", "contract_material_eur"],
+                var_name="art", value_name="eur",
+            )
+            longc["eur"] = longc["eur"].fillna(0)
+            longc["art"] = longc["art"].map(
+                {"billable_material_eur": "berechenbar €", "contract_material_eur": "Vertrag €"}
+            )
+            render_chart(bar(
+                longc, x="eur", y="customer_name", color="art",
+                color_map={"berechenbar €": ACCENT, "Vertrag €": MUTED}, barmode="stack", sort=False,
+                labels={"eur": "Material €", "customer_name": "Kunde", "art": "Art"},
+                title="Top 15 Kunden — Materialkosten (berechenbar vs. Vertrag)",
+            ))
         df = df.rename(columns={
             "customer_name": "Kunde", "material_eur": "Material €",
             "billable_material_eur": "davon berechenbar €", "contract_material_eur": "davon Vertrag €",

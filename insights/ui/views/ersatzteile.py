@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
 from insights.ui.links import doc
+from insights.ui.theme import bar, render_chart, setup_page
 from sqlalchemy import text
 
 
@@ -29,10 +30,10 @@ def kennzahlen() -> dict:
     return {"fa": fa, "geraete": geraete, "modelle": modelle}
 
 
-st.title("🔧 Ersatzteile & Standzeit")
-st.caption(
+setup_page(
+    "🔧 Ersatzteile & Standzeit",
     "Ersatzteile (Fixiereinheit, Trommel, Walzen, Boards …) — wo wir zu früh tauschen "
-    "(Reklamation/Geld zurück) und wie lange ein Teil je Modell real hält (Vorhersage/PM)."
+    "(Reklamation/Geld zurück) und wie lange ein Teil je Modell real hält (Vorhersage/PM).",
 )
 st.caption("📖 Methodik (Standzeit aus Wiedereinbau, Tage + Seiten): "
            f"[Doku Garantie]({doc('garantie.md', '6-ersatzteile-nicht-nur-toner')})")
@@ -102,6 +103,15 @@ with tab_lz:
         params,
     )
     if not df.empty:
+        cd = df.dropna(subset=["median_standzeit_tage"]).copy()
+        if not cd.empty:
+            cd["teil"] = cd["modell"].astype(str) + " · " + cd["teiltyp"].astype(str)
+            render_chart(bar(
+                cd, x="median_standzeit_tage", y="teil", order="asc", top=20,
+                labels={"median_standzeit_tage": "Median Standzeit (Tage)", "teil": "Modell · Teil"},
+                hover_data=["hersteller", "stichproben", "geraete"],
+                title="Kürzeste Standzeiten — störanfälligste Teile (Top 20)",
+            ))
         df = df.rename(columns={
             "hersteller": "Hersteller", "modell": "Modell", "teiltyp": "Teiltyp",
             "stichproben": "Wechsel (Stichproben)", "geraete": "Geräte",
