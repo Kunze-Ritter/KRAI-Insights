@@ -45,6 +45,12 @@ Im Dashboard (**Deckung & Kalkulation → Kunden über Klickpreis-Deckung**) lä
 die Schwelle frei einstellen; der Chat-Agent beantwortet „Welche Kunden drucken über
 6 % Deckung?" über die Route `deckung_kunden` (Parameter `schwelle`, Standard 6).
 
+**Geräte-genau:** Der Kunden-Schnitt fasst die ganze Flotte zusammen — für die konkrete
+Nachberechnung will man wissen, **welches Gerät** über der Schwelle liegt. Die Sicht
+`vw_device_coverage` liefert die Ø-Deckung **je Gerät** (≥ 500 Seiten) inkl. **Radix-ID**
+zur Zuordnung. Dashboard-Tab **Geräte über Klickpreis-Deckung** (Schwellen-Schieber);
+Agent-Route `deckung_geraete` (Parameter `schwelle`).
+
 > **Wichtig:** Die Deckung ist ein **historischer Schnitt** über alle erfassten
 > Patronen des Kunden, kein Tageswert. Für eine Nachberechnung den konkreten
 > Vertragszeitraum und das tatsächliche Volumen gegenprüfen.

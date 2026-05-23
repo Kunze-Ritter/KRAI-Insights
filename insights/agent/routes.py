@@ -95,6 +95,20 @@ def r_coverage_customers(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_coverage_by_customer", sql))
 
 
+def r_coverage_devices(args: dict[str, Any]) -> AnswerCard:
+    schwelle = float(args.get("schwelle") or 6)
+    sql = (
+        "SELECT customer_name AS kunde, customer_city AS ort, model_display AS modell, "
+        "device_serial AS seriennummer, radix_device_number AS radix_id, "
+        "gedruckte_seiten, avg_deckung_pct AS deckung_pct FROM insights.vw_device_coverage "
+        "WHERE avg_deckung_pct >= :s ORDER BY avg_deckung_pct DESC LIMIT 200"
+    )
+    df = _df(sql, {"s": schwelle})
+    txt = (f"{len(df)} Gerät(e) mit Ø-Deckung ≥ {schwelle:g} %. Diese einzelnen Geräte drucken über der "
+           "Klickpreis-Annahme (~6 %) — genau hier lohnt die Nachberechnung; die Radix-ID dient der Zuordnung.")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_device_coverage", sql))
+
+
 def r_developer_risk(args: dict[str, Any]) -> AnswerCard:
     nur_hoch = args.get("nur_hohe_deckung", False)
     where = "WHERE deckung_ueber_5pct" if nur_hoch else "WHERE TRUE"
@@ -573,6 +587,11 @@ REGISTRY: list[Route] = [
           "Kandidaten für Klickpreis-Nachberechnung, weil sie mehr Toner verbrauchen als berechnet.",
           {"schwelle": {"type": "number", "description": "Mindest-Deckung in % (Standard 6)"}}, [],
           r_coverage_customers),
+    Route("deckung_geraete",
+          "Einzelne Geräte mit realer Druck-Deckung über einer Schwelle (Standard 6 %) — zeigt geräte-genau "
+          "(mit Radix-ID), welche Geräte über der Klickpreis-Annahme drucken. Für die Geräte-genaue Nachberechnung.",
+          {"schwelle": {"type": "number", "description": "Mindest-Deckung in % (Standard 6)"}}, [],
+          r_coverage_devices),
     Route("entwickler_risiko",
           "Entwicklereinheit-Frühausfälle und die Druck-Deckung des Geräts. Über ~5 % Deckung gehen "
           "Entwicklereinheiten laut HP früher kaputt (Toner/Entwickler-Mischung) — Service-Hinweis.",

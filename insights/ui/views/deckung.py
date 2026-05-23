@@ -25,8 +25,11 @@ def kennzahlen() -> dict:
             text("SELECT count(*) FROM insights.vw_coverage_by_customer WHERE ueber_klickpreis_6pct")
         ).scalar()
         kunden = conn.execute(text("SELECT count(*) FROM insights.vw_coverage_by_customer")).scalar()
+        geraete6 = conn.execute(
+            text("SELECT count(*) FROM insights.vw_device_coverage WHERE avg_deckung_pct > 6")
+        ).scalar()
         ent = conn.execute(text("SELECT count(*) FROM insights.vw_developer_unit_risk")).scalar()
-    return {"ueber6": ueber6, "kunden": kunden, "ent": ent}
+    return {"ueber6": ueber6, "kunden": kunden, "geraete6": geraete6, "ent": ent}
 
 
 st.title("📈 Deckung & Kalkulation")
@@ -38,20 +41,54 @@ st.caption(f"📖 Methodik (Klickpreis-6 %, Entwickler-Risiko): [Doku Deckung]({
            f"[Garantie/Deckungskorrektur]({doc('garantie.md', '1-wann-ist-etwas-ein-garantiefall')})")
 
 k = kennzahlen()
-c1, c2, c3 = st.columns(3)
-c1.metric("Kunden über 6 % Deckung", f"{k['ueber6']:,}".replace(",", "."),
-          help="Über der Klickpreis-Annahme (6 %) → Nachberechnung prüfen.")
-c2.metric("Kunden mit Deckungsdaten", f"{k['kunden']:,}".replace(",", "."))
-c3.metric("Entwickler-Frühausfälle", f"{k['ent']:,}".replace(",", "."),
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Geräte über 6 % Deckung", f"{k['geraete6']:,}".replace(",", "."),
+          help="Einzelne Geräte über der Klickpreis-Annahme — siehe Tab Geräte über Klickpreis-Deckung.")
+c2.metric("Kunden über 6 % Deckung", f"{k['ueber6']:,}".replace(",", "."),
+          help="Kunden, deren Flotten-Schnitt über 6 % liegt → Nachberechnung prüfen.")
+c3.metric("Kunden mit Deckungsdaten", f"{k['kunden']:,}".replace(",", "."))
+c4.metric("Entwickler-Frühausfälle", f"{k['ent']:,}".replace(",", "."),
           help="Entwicklereinheiten, die innerhalb 1 Jahr erneut getauscht wurden.")
 
 st.divider()
-tab_kunde, tab_ent = st.tabs(["Kunden über Klickpreis-Deckung", "Entwickler-Risiko (hohe Deckung)"])
+tab_geraet, tab_kunde, tab_ent = st.tabs(
+    ["Geräte über Klickpreis-Deckung", "Kunden über Klickpreis-Deckung", "Entwickler-Risiko (hohe Deckung)"]
+)
+
+with tab_geraet:
+    st.markdown("**Reale Deckung je Gerät** (seitengewichtet). Genau hier sieht man, welche "
+                "**einzelnen Geräte** über der Klickpreis-Annahme (6 %) drucken — mit Radix-ID zur "
+                "Zuordnung. Sortiert nach Deckung absteigend.")
+    schwelle_g = st.slider("Mindest-Deckung % anzeigen", min_value=0, max_value=20, value=6, step=1,
+                           key="schwelle_geraet")
+    dfg = frame(
+        "SELECT customer_name, customer_city, manufacturer_canonical, model_display, "
+        "device_serial, radix_device_number, gedruckte_seiten, avg_deckung_pct "
+        "FROM insights.vw_device_coverage WHERE avg_deckung_pct >= :s "
+        "ORDER BY avg_deckung_pct DESC LIMIT 1000",
+        {"s": schwelle_g},
+    )
+    if not dfg.empty:
+        dfg = dfg.rename(columns={
+            "customer_name": "Kunde", "customer_city": "Ort",
+            "manufacturer_canonical": "Hersteller", "model_display": "Modell",
+            "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",
+            "gedruckte_seiten": "Gedruckte Seiten", "avg_deckung_pct": "Ø Deckung %",
+        })
+    st.write(f"**{len(dfg):,}**".replace(",", ".") + f" Gerät(e) ≥ {schwelle_g} % Deckung "
+             "(nur Geräte mit ≥ 500 erfassten Seiten)")
+    st.dataframe(dfg, width="stretch", hide_index=True)
+    st.caption("Spalten sind sortierbar (Klick auf den Kopf). Belastbarkeit steigt mit der Seitenzahl: "
+               "**Werte um 100 % bei wenigen Seiten** stammen oft aus einzelnen verrauschten/gedeckelten "
+               "Messungen (Deckung wird auf 0,5 bis 100 % begrenzt) — für eine Nachberechnung Geräte mit "
+               "hoher Seitenzahl bevorzugen.")
 
 with tab_kunde:
-    st.markdown("**Reale Deckung je Kunde** (seitengewichtet). Über 6 % = mehr Tonerverbrauch als "
-                "im Klickpreis kalkuliert → Kandidat für Nachberechnung / Vertragsanpassung.")
-    schwelle = st.slider("Mindest-Deckung % anzeigen", min_value=0, max_value=20, value=6, step=1)
+    st.markdown("**Reale Deckung je Kunde** (seitengewichtet über die ganze Flotte des Kunden). Über "
+                "6 % = mehr Tonerverbrauch als im Klickpreis kalkuliert → Kandidat für Nachberechnung "
+                "/ Vertragsanpassung. Geräte-genau siehe Tab nebenan.")
+    schwelle = st.slider("Mindest-Deckung % anzeigen", min_value=0, max_value=20, value=6, step=1,
+                         key="schwelle_kunde")
     df = frame(
         "SELECT customer_name, customer_city, geraete, gedruckte_seiten, avg_deckung_pct "
         "FROM insights.vw_coverage_by_customer WHERE avg_deckung_pct >= :s ORDER BY avg_deckung_pct DESC LIMIT 500",
