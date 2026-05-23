@@ -82,15 +82,26 @@ verbrauchten Anteil**. Wenn eine Patrone 30 % ihrer Soll-Laufleistung erreicht h
 sind 70 % „verschenkt" und damit erstattbar:
 
 ```
-erstattbarer Anteil je Fall = 1 − (gelaufene Seiten / Soll-Laufleistung)
-geschätzter Wert = Σ (erstattbarer Anteil) × mittlerer Tonerpreis
+erstattbarer Anteil je Fall = 1 − (gelieferte Tonermenge / Soll-Tonermenge)
+zentraler €-Wert = Σ (erstattbarer Anteil × Tonerpreis des Herstellers)
+Band (Unsicherheit) = Σ (erstattbarer Anteil) × {globaler p10 ; p90}
 ```
 
-> **Schätzung, bewusst grob.** Der mittlere Tonerpreis (~105 €, Median) stammt aus
-> den wenigen in Radix bekannten Materialpreisen (nur ~65 Preise). Der **€-Betrag
-> ist eine Größenordnung**, kein exakter Wert. Die **Fallzahlen und die
-> Laufleistungs-% sind dagegen hart belegt.** Eine belastbare €-Zahl braucht echte
-> Stück-/Artikelpreise (aktuell nicht flächendeckend in den Daten).
+> **Schätzung, bewusst grob — jetzt mit Herstellerpreis + Band (Migration 046).**
+> Früher: ein **einziger** globaler Median (~105 €) × Restwert-Summe → „~74.500 €".
+> Zwei Probleme: (a) nur **65 Preispunkte**, Streuung 21–247 € (p10–p90) → 12-fache
+> Spanne; (b) der globale Median ist **nach oben verzerrt** — die meisten Fälle sind
+> Konica Minolta (Toner-Median **55 €**) und Lexmark (~18 €), während teure Toner den
+> globalen Median hochziehen. Jetzt wird **je Hersteller** mit dessen eigenem
+> Toner-Median bewertet (wo ≥ 5 Preise vorliegen, sonst global) →
+> **zentraler Wert ~53.000 €** statt 74.500 €. Zusätzlich wird das **Band**
+> (~15.000–175.000 €) ausgewiesen, damit die Unsicherheit sichtbar bleibt.
+> **Spalten:** `vw_lagebericht.claim_restwert_eur` (+ `_low`/`_high`),
+> `vw_warranty_by_manufacturer.erstattbar_eur` (+ `toner_preis_eur`).
+> **Grenze:** Lexmark hat nur **1** Preisbeleg → fällt auf den globalen Median zurück
+> und ist damit eher zu hoch angesetzt. Die **Fallzahlen und Laufleistungs-% sind
+> dagegen hart belegt.** Eine punktgenaue €-Zahl bräuchte flächendeckende
+> Stück-/Artikelpreise (offizielle Core-API).
 
 ## 5. Zeitfenster — was ist HEUTE noch einreichbar?
 
@@ -123,8 +134,15 @@ setzen.
   und Ausbau am selben Tag = simultane Mehrfach-Meldung) zählen als `artifact`.
 - **86 % der VBM-Events ohne Hersteller-Soll** → Garantie-Bewertung nur für ~14 %
   möglich; die Garantiefälle stammen aus diesem Teil.
-- **€ nur für Toner** (Migration 042): das Rückhol-Potenzial nutzt den mittleren
-  Tonerpreis und gilt daher nur für Toner-Fälle; CRU-Teile separat (andere Preise).
+- **€ nur für Toner** (Migration 042): das Rückhol-Potenzial nutzt den Tonerpreis und
+  gilt daher nur für Toner-Fälle; CRU-Teile separat (andere Preise).
+- **€ herstellergewichtet + Band** (Migration 046): statt eines einzigen globalen
+  Medians (verzerrte ~74.500 €) jetzt der **Toner-Median je Hersteller** (zentral
+  ~53.000 €) plus ein ausgewiesenes **Unsicherheits-Band** (~15.000–175.000 €, aus
+  p10/p90 von nur 65 Preisen). Siehe §4.
+- **Ersatzteil-Frühausfälle usage-validiert** (Migration 045): Frühausfall nur bei
+  < 70 % einer **Seiten-Referenz** (OEM-Soll oder Vergleichs-Median), nicht mehr rein
+  zeitbasiert; Headline zählt belegte **Geräte** (~192) statt Roh-Zeilen (4.077). Siehe §6.
 - **Verrauschte Rohdaten** (viele 0-Seiten-Events + Duplikate) — durch `<100 Seiten`
   und `age=0` aus den Garantiefällen herausgehalten.
 
@@ -145,9 +163,26 @@ Mainboards, …). Die Logik ist anders:
 
 **Zwei Auswertungen** (`docs` → Sichten `vw_part_*`):
 
-1. **Frühausfälle** (`vw_part_early_failures`): Teil innerhalb 7–365 Tagen erneut
-   getauscht → Ausfall innerhalb der Garantie → Reklamation prüfen. (< 7 Tage =
-   Buchung im selben Einsatz = Rauschen, ausgefiltert.) Aktuell ~4.000 Fälle.
+1. **Frühausfälle** (`vw_part_early_failures`): ein Teil ist nur dann ein Frühausfall,
+   wenn es **unter 70 % einer Laufleistungs-Referenz (in Seiten)** lief — **nicht**
+   schon, weil es innerhalb eines Jahres erneut getauscht wurde. Konfidenz-Stufen:
+   - **`hoch`** — unter 70 % des **Hersteller-Soll** (OEM-Nominal, Seiten).
+   - **`mittel`** — unter 70 % der **Vergleichs-Laufleistung** gleicher Geräte/Teile
+     (Median je Modell ≥ 5, sonst Hersteller ≥ 8, sonst Teiltyp ≥ 20 Stichproben).
+   - **`niedrig`** — **kein** Seitenbeleg vorhanden → nur die Zeitheuristik (7–365 Tage).
+     Standardmäßig ausgeblendet und **nicht** in der Headline.
+
+   > **Warum die Verschärfung (Audit 2026-05-23, Migration 045).** Die alte Logik
+   > stufte **jedes** binnen 7–365 Tagen erneut getauschte Teil als Frühausfall ein —
+   > **ohne Seitenprüfung** (genau der Deckungs-/Nutzungsfehler, der bei Toner in 043
+   > schon behoben war). Messung: 92 % der 4.077 Zeilen liefen über die reine
+   > Zeitheuristik; die 135 davon **mit** Seitendaten liefen im **Median 27.936 Seiten**
+   > (p90 143.728; 23 über 100.000) = **Vielnutzer-Normalverschleiß**, fälschlich als
+   > Garantie markiert. Zudem massive Mehrfachzählung: 4.077 Zeilen über nur **720**
+   > Geräte (ein Gerät × Teiltyp 76-mal). Die Headline zählt jetzt **distinct Geräte
+   > mit belegtem Frühausfall (hoch/mittel) ≈ 192**; die zeitbasierten ~527 Geräte
+   > stehen separat als `ersatzteil_fruehausfaelle_zeitbasiert`. (< 7 Tage =
+   > Doppelbuchung im selben Einsatz, weiterhin ausgefiltert.)
 2. **Standzeit-Modell** (`vw_part_lifetime_stats`): Median-Standzeit je
    (Modell × Teiltyp) aus Intervallen ≥ 30 Tagen, ab 5 Stichproben → dient der
    **Vorhersage** (wann ist das Teil fällig → PM) und zeigt **störanfällige Teile**
@@ -170,12 +205,18 @@ der KRAI-Datenbank (`krai_pm.part_lifetimes`, aus einer Konica-Minolta-Excel,
 (126 Werte, aktuell **nur Konica Minolta**: z. B. Trommel 180–300k, Fixiereinheit
 540–840k, Transferband 360k–1,2M Seiten). Damit bewerten wir **pro Einzel-Tausch**: ein Teil, das **< 70 % seines OEM-Soll**
 (Seiten) erreicht hat, ist ein Frühausfall (`vw_part_early_failures`, Spalte
-`basis = OEM-Soll (Seiten)`). **Nur wo kein OEM-Soll existiert**, greift als Fallback
-die 1-Jahres-Zeitheuristik (`basis = Zeit (1 Jahr)`). Aktuell: ~345 Fälle OEM-belegt
-(Konica Minolta), ~3.700 über die Zeitheuristik — z. B. eine Trommel, die nur 809
-von 230.000 Soll-Seiten lief (Diagnose „Streifen auf Ausdruck"). Die Soll-Zuordnung
-läuft über die Teil-Kategorie (Teilenummer-genaue Zuordnung wäre noch genauer).
-HP/Lexmark bräuchten ihre eigene Soll-Liste (Excel) analog.
+`basis = OEM-Soll (Seiten)`, Konfidenz `hoch`). **Wo kein OEM-Soll existiert**, greift
+seit Migration 045 **nicht mehr** die reine Zeitheuristik, sondern ein
+**Vergleichs-Median in Seiten** (Modell → Hersteller → Teiltyp, Konfidenz `mittel`):
+ein Teil, das unter 70 % der Laufleistung gleicher Teile liegt, ist ein Frühausfall —
+ein Vielnutzer-Verschleiß mit hoher Seitenzahl wird so **nicht** mehr fälschlich
+markiert. Nur Teile **ganz ohne Seitenbeleg** fallen auf die Zeitheuristik zurück
+(Konfidenz `niedrig`, nicht in der Headline). Aktuell: 147 Geräte OEM-belegt
+(Konica Minolta, `hoch`) + 46 Geräte über den Vergleichs-Median (`mittel`) =
+**~192 belegte Geräte**; ~527 weitere nur zeitbasiert (`niedrig`). Beispiel: eine
+Trommel, die nur 809 von 230.000 Soll-Seiten lief (Diagnose „Streifen auf Ausdruck").
+Die Soll-Zuordnung läuft über die Teil-Kategorie (Teilenummer-genau wäre noch
+genauer). HP/Lexmark bräuchten ihre eigene OEM-Soll-Liste (Excel) analog.
 
 **Grenzen / To-do:**
 - **Abdeckung ~26 % der Ersatzteil-Geräte:** von ~4.700 Geräten mit Teile-Einbauten

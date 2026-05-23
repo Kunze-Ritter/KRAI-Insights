@@ -59,18 +59,21 @@ def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
     r = df.iloc[0]
     claims = int(r["garantie_claims"] or 0)
     claims_serial = int(r["garantie_claims_serial"] or 0)
-    preis = int(r["toner_preis_median"] or 0)
-    restwert = float(r["claim_restwert_summe"] or 0)
-    schaetz = round(restwert * preis)
+    eur_mid = round(float(r["claim_restwert_eur"] or 0))
+    eur_low = round(float(r["claim_restwert_eur_low"] or 0))
+    eur_high = round(float(r["claim_restwert_eur_high"] or 0))
+    teile = int(r["ersatzteil_fruehausfaelle"] or 0)
+    teile_zeit = int(r["ersatzteil_fruehausfaelle_zeitbasiert"] or 0)
     txt = (
         "Lagebericht (Stand jetzt):\n"
         f"• Garantie/Geld: {claims} reklamierbare Garantiefälle (davon {claims_serial} serial-belegt = "
         f"stärkster Nachweis; Falschmeldungen herausgefiltert; Ø nur {int(r['claim_schnitt_pct'] or 0)} % "
-        f"der Soll-Laufzeit erreicht) → geschätzt {_eur(schaetz)} erstattbar (nur die ungenutzte "
-        f"Restlaufzeit, ~{preis} € je Einheit); zusätzlich {int(r['verhandlung_kandidaten'] or 0)} "
-        "Verhandlungs-Kandidaten als Hebel.\n"
-        f"• Ersatzteile: {int(r['ersatzteil_fruehausfaelle'] or 0)} Frühausfälle (Fixierer/Trommel/Walzen … "
-        "innerhalb 1 Jahr erneut getauscht) → Reklamation prüfen.\n"
+        f"der Soll-Tonermenge geliefert) → grob {_eur(eur_mid)} erstattbar (Spanne {_eur(eur_low)} bis "
+        f"{_eur(eur_high)}; nur die ungenutzte Restlaufzeit, herstellergewichteter Tonerpreis, Basis nur "
+        f"~65 Preise); zusätzlich {int(r['verhandlung_kandidaten'] or 0)} Verhandlungs-Kandidaten als Hebel.\n"
+        f"• Ersatzteile: {teile} Geräte mit belegtem Ersatzteil-Frühausfall (unter 70 % der Soll-/Vergleichs-"
+        f"Laufleistung, seitenbelegt) → Reklamation prüfen; zusätzlich {teile_zeit} Geräte nur zeitbasiert "
+        "(ohne Seitenbeleg, schwächerer Nachweis).\n"
         f"• Abrechnungsrisiko: {int(r['stille_unter_vertrag'] or 0)} Geräte unter Vertrag melden keine Zähler "
         "(Abrechnung läuft auf Schätzwerten).\n"
         f"• Datenqualität: {int(r['kunden_abweichung'] or 0)} Geräte mit abweichender Kundenzuordnung "
@@ -126,26 +129,28 @@ def r_developer_risk(args: dict[str, Any]) -> AnswerCard:
 
 
 def r_warranty_overview(args: dict[str, Any]) -> AnswerCard:
-    lb = _df("SELECT garantie_claims, garantie_claims_serial, claim_schnitt_pct, claim_restwert_summe, "
-             "toner_preis_median FROM insights.vw_lagebericht")
-    preis = int(lb.iloc[0]["toner_preis_median"] or 0) if not lb.empty else 0
+    lb = _df("SELECT garantie_claims, garantie_claims_serial, claim_schnitt_pct, "
+             "claim_restwert_eur, claim_restwert_eur_low, claim_restwert_eur_high "
+             "FROM insights.vw_lagebericht")
     claims = int(lb.iloc[0]["garantie_claims"] or 0) if not lb.empty else 0
     claims_serial = int(lb.iloc[0]["garantie_claims_serial"] or 0) if not lb.empty else 0
     pct = int(lb.iloc[0]["claim_schnitt_pct"] or 0) if not lb.empty else 0
-    restwert = float(lb.iloc[0]["claim_restwert_summe"] or 0) if not lb.empty else 0.0
-    # per-manufacturer estimated reclaim = residual fraction sum x median price
+    eur_mid = round(float(lb.iloc[0]["claim_restwert_eur"] or 0)) if not lb.empty else 0
+    eur_low = round(float(lb.iloc[0]["claim_restwert_eur_low"] or 0)) if not lb.empty else 0
+    eur_high = round(float(lb.iloc[0]["claim_restwert_eur_high"] or 0)) if not lb.empty else 0
+    # erstattbar_eur is precomputed per manufacturer (residual x that maker's toner price)
     sql = (
         "SELECT hersteller, garantiefaelle, serial_belegt, claim_schnitt_pct AS schnitt_pct_vom_soll, "
-        f"verhandlung, round(restwert_summe * {preis}) AS erstattbar_eur "
-        "FROM insights.vw_warranty_by_manufacturer"
+        "verhandlung, toner_preis_eur, erstattbar_eur FROM insights.vw_warranty_by_manufacturer"
     )
     df = _df(sql)
     txt = (
         f"Garantie-Übersicht: {claims} reklamierbare Garantiefälle (davon {claims_serial} serial-belegt; "
-        f"Falschmeldungen herausgefiltert), im Schnitt nur {pct} % der Soll-Laufzeit erreicht → geschätzt "
-        f"{_eur(round(restwert * preis))} erstattbar (nur die ungenutzte Restlaufzeit, ~{preis} € je Einheit). "
-        "Hinweis: Konica Minolta/Kyocera melden keine Seriennummer (serial_belegt=0), die Fälle sind aber "
-        "über die Zähler belegt. Erstattbarer Wert je Hersteller siehe Tabelle."
+        f"Falschmeldungen herausgefiltert), im Schnitt nur {pct} % der Soll-Tonermenge → grob {_eur(eur_mid)} "
+        f"erstattbar (Spanne {_eur(eur_low)} bis {_eur(eur_high)}; herstellergewichteter Tonerpreis, Basis nur "
+        "~65 Preise). Hinweis: Konica Minolta/Kyocera melden keine Seriennummer (serial_belegt=0), die Fälle "
+        "sind aber über die Zähler belegt. Erstattbarer Wert je Hersteller siehe Tabelle (Spalte "
+        "erstattbar_eur, mit dem je Hersteller verwendeten Tonerpreis)."
     )
     return AnswerCard(text=txt, data=df, citation=_cite("vw_warranty_by_manufacturer", sql))
 
@@ -467,7 +472,8 @@ def r_shipping_addresses(args: dict[str, Any]) -> AnswerCard:
 def r_part_early_failures(args: dict[str, Any]) -> AnswerCard:
     kunde = (args.get("kunde") or "").strip()
     teiltyp = (args.get("teiltyp") or "").strip()
-    where = ["TRUE"]
+    nur_belegt = args.get("nur_belegt", True)
+    where = ["konfidenz IN ('hoch', 'mittel')"] if nur_belegt else ["TRUE"]
     params: dict[str, Any] = {}
     if kunde:
         where.append("customer_name ILIKE :k")
@@ -478,15 +484,17 @@ def r_part_early_failures(args: dict[str, Any]) -> AnswerCard:
     sql = (
         "SELECT customer_name AS kunde, manufacturer_canonical AS hersteller, model_display AS modell, "
         "device_serial AS seriennummer, radix_device_number AS radix_id, teiltyp, description AS teil, "
-        "einbau_datum, erneut_getauscht, standzeit_tage, standzeit_seiten, "
-        "oem_nominal_seiten AS oem_soll_seiten, pct_vom_oem, basis, diagnose "
+        "einbau_datum, erneut_getauscht, standzeit_tage, standzeit_seiten, referenz_seiten AS soll_seiten, "
+        "pct_vom_referenz AS pct_vom_soll, basis, konfidenz, diagnose "
         "FROM insights.vw_part_early_failures "
-        f"WHERE {' AND '.join(where)} ORDER BY pct_vom_oem ASC NULLS LAST, standzeit_tage ASC LIMIT 100"
+        f"WHERE {' AND '.join(where)} ORDER BY konfidenz, pct_vom_referenz ASC NULLS LAST, standzeit_tage ASC "
+        "LIMIT 100"
     )
     df = _df(sql, params)
-    txt = (f"{len(df)} Ersatzteil-Frühausfälle → Reklamation/Geld-zurück prüfen. Wo Hersteller-Soll "
-           "bekannt ist (Spalte basis = OEM-Soll), zählt 'unter 70 % der Soll-Seiten'; sonst die "
-           "1-Jahres-Heuristik. Niedrigster Prozent-vom-Soll zuerst.")
+    txt = (f"{len(df)} Ersatzteil-Frühausfälle → Reklamation/Geld-zurück prüfen. Konfidenz: 'hoch' = unter "
+           "70 % des Hersteller-Soll (Seiten), 'mittel' = unter 70 % der Vergleichs-Laufleistung gleicher "
+           "Modelle/Teile (Seiten) — beide seitenbelegt; 'niedrig' = nur zeitbasiert ohne Seitenbeleg "
+           "(standardmäßig ausgeblendet, schwächerer Nachweis). Niedrigster Prozent-vom-Soll zuerst.")
     return AnswerCard(text=txt, data=df, citation=_cite("vw_part_early_failures", sql))
 
 
@@ -598,10 +606,13 @@ REGISTRY: list[Route] = [
           {"nur_hohe_deckung": {"type": "boolean", "description": "nur Geräte mit belegter Deckung über 5 %"}}, [],
           r_developer_risk),
     Route("ersatzteil_fruehausfaelle",
-          "Ersatzteile (Fixierer, Trommel, Walzen, Boards …), die innerhalb der ~1-Jahres-Garantie "
-          "erneut getauscht wurden — Frühausfälle für Reklamation/Geld-zurück.",
+          "Ersatzteile (Fixierer, Trommel, Walzen, Boards …), die vorzeitig ausgefallen sind — unter 70 % "
+          "der Soll-Laufleistung (Hersteller-Soll) bzw. der Vergleichs-Laufleistung gleicher Modelle/Teile "
+          "(Seiten). Standardmäßig nur seiten-belegte Fälle (Konfidenz hoch/mittel) — Frühausfälle für Reklamation.",
           {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"},
-           "teiltyp": {"type": "string", "description": "optionaler Teiltyp, z. B. Fixiereinheit, Trommel, Walze"}},
+           "teiltyp": {"type": "string", "description": "optionaler Teiltyp, z. B. Fixiereinheit, Trommel, Walze"},
+           "nur_belegt": {"type": "boolean", "description": "nur seiten-belegte Fälle (Standard true); "
+                          "false zeigt auch nur-zeitbasierte (schwächerer Nachweis)"}},
           [], r_part_early_failures),
     Route("ersatzteil_standzeit",
           "Reale Ersatzteil-Standzeit je Modell und Teiltyp (Median aus Wiedereinbau-Intervallen) — "

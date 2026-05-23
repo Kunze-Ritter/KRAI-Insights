@@ -6,6 +6,10 @@ the answer comes from the route (no hallucinated numbers).
 
 from __future__ import annotations
 
+import json
+import re
+from typing import Any
+
 from insights.agent import routes, text_to_sql
 from insights.agent.ollama_client import OllamaClient
 from insights.agent.routes import AnswerCard
@@ -56,6 +60,43 @@ async def _analyze(question: str, card: AnswerCard, client: OllamaClient) -> Ans
     return card
 
 
+_EMBEDDED_NAME = re.compile(r'"name"\s*:\s*"([a-z_]+)"')
+
+
+def _recover_tool_call(content: str) -> tuple[str, dict[str, Any]] | None:
+    """Best-effort recover a tool-call the model emitted as TEXT instead of structured.
+
+    Some tool-capable models (observed: qwen2.5:7b via Ollama) occasionally print the
+    call into ``content`` — e.g. ``brtc {"name": "abrechnungs_risiko", "arguments":
+    {...}}`` — leaving ``tool_calls`` empty. Without this the raw JSON would leak to the
+    user. We parse the first JSON object that names a known route and run it normally.
+    """
+    if not content or "{" not in content:
+        return None
+    candidate = content[content.find("{"): content.rfind("}") + 1]
+    blobs = [candidate]
+    m = _EMBEDDED_NAME.search(content)  # fallback: a route name even amid prose
+    if m and m.group(1) in routes.BY_NAME:
+        blobs.append("{" + m.group(0) + "}")
+    for blob in blobs:
+        try:
+            obj = json.loads(blob)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(obj, dict):
+            continue
+        name = obj.get("name")
+        args = obj.get("arguments", obj.get("parameters", {}))
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError:
+                args = {}
+        if name in routes.BY_NAME and isinstance(args, dict):
+            return name, args
+    return None
+
+
 async def answer(question: str) -> AnswerCard:
     """Route a question through Ollama and return the matching route's AnswerCard."""
     settings = get_settings()
@@ -72,19 +113,26 @@ async def answer(question: str) -> AnswerCard:
             citation={"route": None, "vertrauen": 0.0},
         )
 
+    name: str | None = None
+    args: dict[str, Any] = {}
     calls = message.get("tool_calls") or []
     if calls:
         fn = calls[0].get("function", {})
         name = fn.get("name")
-        args = fn.get("arguments") or {}
-        if not isinstance(args, dict):
-            args = {}
-        route = routes.BY_NAME.get(name)
-        if route:
-            logger.info("routed to %s(%s)", name, args)
-            card = route.handler(args)
-            card.citation = {**card.citation, "route": name, "parameter": args}
-            return await _analyze(question, card, client)
+        args = fn.get("arguments") if isinstance(fn.get("arguments"), dict) else {}
+    else:
+        # The model may have emitted the tool-call as text — recover it before falling back.
+        recovered = _recover_tool_call(message.get("content") or "")
+        if recovered:
+            name, args = recovered
+            logger.info("recovered text-emitted tool-call: %s", name)
+
+    route = routes.BY_NAME.get(name) if name else None
+    if route:
+        logger.info("routed to %s(%s)", name, args)
+        card = route.handler(args)
+        card.citation = {**card.citation, "route": name, "parameter": args}
+        return await _analyze(question, card, client)
 
     # No catalog route matched — try the guarded free-text SQL fallback.
     card = await text_to_sql.generate_and_run(question, client)

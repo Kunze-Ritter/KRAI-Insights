@@ -6,7 +6,7 @@ Jede Dashboard-Kennzahl in einem Satz: Bedeutung, Quelle, Detail-Doku.
 
 | Kennzahl | Bedeutung | Quelle / Detail |
 |---|---|---|
-| **Geschätztes Rückhol-Potenzial** | erstattbarer Garantiewert = Summe der ungenutzten Restlaufzeit × mittlerer Tonerpreis (grobe Schätzung) | [Garantie §4](garantie.md#4-was-ist-der--wert-restwert-modell) |
+| **Geschätztes Rückhol-Potenzial** | erstattbarer Garantiewert = Σ ungenutzte Restlaufzeit × Tonerpreis **je Hersteller** (zentral ~53.000 €), mit ausgewiesenem Band ~15.000–175.000 € (grobe Schätzung, nur 65 Preise) | [Garantie §4](garantie.md#4-was-ist-der--wert-restwert-modell) |
 | **Reklamierbare Garantiefälle** | Materialien ≤ 1 Jahr alt und < 70 % der Soll-Laufleistung; Fehlmeldungen herausgerechnet | [Garantie §1–2](garantie.md#1-wann-ist-etwas-ein-garantiefall) |
 | **davon serial-belegt** | mit Hersteller-Seriennummer = stärkster Nachweis (KM/Kyocera melden keine) | [Garantie §3](garantie.md#3-serial-belegt-vs-ohne-seriennummer-nachweis-stärke) |
 | **Verhandlungs-Kandidaten** | > 1 Jahr, aber unter Soll-Laufleistung → Hebel ggü. Hersteller | [Garantie §1](garantie.md#1-wann-ist-etwas-ein-garantiefall) |
@@ -19,7 +19,7 @@ Jede Dashboard-Kennzahl in einem Satz: Bedeutung, Quelle, Detail-Doku.
 
 | Kennzahl | Bedeutung | Detail |
 |---|---|---|
-| **Frühausfälle (≤ 1 Jahr)** | Ersatzteil innerhalb der ~1-Jahres-Garantie erneut getauscht → Reklamation; mit Symptom/Diagnose aus dem Ticket | [Garantie §6](garantie.md#6-ersatzteile-nicht-nur-toner) |
+| **Ersatzteil-Frühausfälle** | Teil lief unter 70 % einer **Seiten-Referenz** (Hersteller-Soll = Konfidenz `hoch`, sonst Vergleichs-Median = `mittel`); Headline zählt belegte **Geräte** (~192). Rein zeitbasierte (ohne Seitenbeleg) separat als `niedrig` | [Garantie §6](garantie.md#6-ersatzteile-nicht-nur-toner) |
 | **Standzeit je Modell/Teil** | reale Standzeit (Median, Tage + Seiten) je Modell × Teiltyp aus Wiedereinbau-Intervallen → Vorhersage/PM + störanfällige Teile | [Garantie §6](garantie.md#6-ersatzteile-nicht-nur-toner) |
 
 ## Service-Qualität
