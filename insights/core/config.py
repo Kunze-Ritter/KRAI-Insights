@@ -68,9 +68,20 @@ class Settings(BaseSettings):
     radix_token_cache_path: str = ".cache/radix_token.json"
     radix_token_refresh_margin_seconds: int = 60
 
+    # --- LLM provider for the agent ----------------------------------------
+    # "ollama" (local) or "openrouter" (hosted, OpenAI-compatible). The agent works
+    # with either; OpenRouter gives access to stronger free models (better tool-calling
+    # + German analysis). Falls back to Ollama if openrouter is selected without a key.
+    llm_provider: str = "ollama"
+
     # --- Ollama -------------------------------------------------------------
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5-coder:7b"
+
+    # --- OpenRouter (optional hosted backend) ------------------------------
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
 
     # --- Business rules -----------------------------------------------------
     warranty_default_days: int = 365

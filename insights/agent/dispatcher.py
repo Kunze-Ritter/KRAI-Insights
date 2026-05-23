@@ -11,7 +11,7 @@ import re
 from typing import Any
 
 from insights.agent import routes, text_to_sql
-from insights.agent.ollama_client import OllamaClient
+from insights.agent.llm import get_llm_client
 from insights.agent.routes import AnswerCard
 from insights.core.config import get_settings
 from insights.core.logging import get_logger
@@ -30,25 +30,36 @@ SYSTEM_PROMPT = (
 # Second pass: turn the route's (already-correct) data into a short analysis.
 ANALYZE_PROMPT = (
     "Du bist Analyst bei einem Druckdienstleister, der Kopierer/Drucksysteme bei Kunden "
-    "wartet (Verbrauchsmaterial, Garantie, Service, Verträge). Du bekommst eine Frage und das "
-    "bereits korrekt berechnete Ergebnis einer Auswertung. Fasse die wichtigsten Erkenntnisse "
-    "in 2 bis 4 kurzen, sachlichen Sätzen zusammen und gib EINE konkrete Handlungsempfehlung "
-    "aus diesem Geschäft (z. B. Garantie beim Hersteller einreichen, Kunde kontaktieren, "
-    "Daten im System korrigieren, Material/Tour vorbereiten). Nutze ausschließlich Zahlen aus "
-    "dem Ergebnis und erfinde nichts — keine erfundenen Abteilungen, Module oder Produktnamen. "
-    "Wiederhole die Tabelle nicht."
+    "wartet (Verbrauchsmaterial, Garantie, Service, Verträge). Du bekommst eine Frage, die "
+    "bereits korrekt ermittelten FAKTEN (Zahlen mit ihrer Bedeutung und Einheit) und eine "
+    "Detailtabelle. Die Fakten sind WAHR und vollständig. Übernimm Zahlen NUR mit exakt der dort "
+    "genannten Bedeutung und Einheit — erfinde keine Einheiten, Zeiträume, Abteilungen, Module "
+    "oder Produktnamen und rechne nichts um (z. B. eine Anzahl ist KEINE Anzahl Tage). Fasse die "
+    "wichtigste Erkenntnis in 2 bis 3 kurzen, sachlichen Sätzen zusammen und gib EINE konkrete "
+    "Handlungsempfehlung aus diesem Geschäft (Garantie beim Hersteller einreichen, Kunde "
+    "kontaktieren, Daten im System korrigieren, Material/Tour vorbereiten). Wiederhole die "
+    "Tabelle nicht."
 )
 
 
-async def _analyze(question: str, card: AnswerCard, client: OllamaClient) -> AnswerCard:
-    """Append a short LLM analysis of the route's data (data stays the source of truth)."""
+async def _analyze(question: str, card: AnswerCard, client: Any) -> AnswerCard:
+    """Append a short LLM analysis of the route's data (data stays the source of truth).
+
+    The model is grounded in the route's already-correct summary text (numbers with their
+    meaning) plus the detail table, so it interprets rather than re-deriving figures.
+    """
     if card.data is None or card.data.empty:
         return card
     sample = card.data.head(30).to_string(index=False)
+    user = (
+        f"Frage: {question}\n\n"
+        f"Bereits korrekt ermittelte Fakten (Zahlen mit ihrer Bedeutung — nicht verändern):\n{card.text}\n\n"
+        f"Detailtabelle ({len(card.data)} Zeilen):\n{sample}"
+    )
     try:
         msg = await client.chat([
             {"role": "system", "content": ANALYZE_PROMPT},
-            {"role": "user", "content": f"Frage: {question}\n\nErgebnis ({len(card.data)} Zeilen):\n{sample}"},
+            {"role": "user", "content": user},
         ])
     except Exception as exc:
         logger.warning("analysis pass failed: %s", exc)
@@ -100,7 +111,7 @@ def _recover_tool_call(content: str) -> tuple[str, dict[str, Any]] | None:
 async def answer(question: str) -> AnswerCard:
     """Route a question through Ollama and return the matching route's AnswerCard."""
     settings = get_settings()
-    client = OllamaClient(settings.ollama_base_url, settings.ollama_model)
+    client = get_llm_client(settings)
     try:
         message = await client.chat(
             [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": question}],

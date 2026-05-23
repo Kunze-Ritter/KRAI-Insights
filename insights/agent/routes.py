@@ -188,6 +188,33 @@ def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_device_lookup", sql))
 
 
+def r_fleet_count(args: dict[str, Any]) -> AnswerCard:
+    nach = (args.get("nach") or "hersteller").lower()
+    colmap = {
+        "hersteller": "manufacturer_canonical",
+        "status": "device_status",
+        "modell": "model_display",
+        "kunde": "customer_name",
+    }
+    col = colmap.get(nach, "manufacturer_canonical")  # fixed whitelist — safe to interpolate
+    nach = next((k for k, v in colmap.items() if v == col), "hersteller")
+    filt = (args.get("filter") or "").strip()
+    where = f"WHERE {col} ILIKE :f " if filt else ""
+    sql = (
+        f"SELECT {col} AS gruppe, count(*) AS geraete, "
+        "count(*) FILTER (WHERE device_status = 'live') AS davon_live "
+        f"FROM insights.devices_unified {where}"
+        f"GROUP BY {col} ORDER BY geraete DESC NULLS LAST LIMIT 200"
+    )
+    df = _df(sql, {"f": f"%{filt}%"} if filt else None)
+    gesamt = int(df["geraete"].sum()) if not df.empty else 0
+    live = int(df["davon_live"].sum()) if not df.empty else 0
+    fuer = f" (Filter '{filt}')" if filt else ""
+    txt = (f"Flotte nach {nach}{fuer}: {len(df)} Gruppe(n), {gesamt} Geräte gesamt "
+           f"(davon {live} aktiv/live).")
+    return AnswerCard(text=txt, data=df, citation=_cite("devices_unified", sql))
+
+
 def r_oem_yield(args: dict[str, Any]) -> AnswerCard:
     colorant = (args.get("farbe") or "black").lower()
     model = (args.get("modell") or "").strip()
@@ -625,6 +652,15 @@ REGISTRY: list[Route] = [
           "(zeigt auch IP/MAC für den Service).",
           {"suche": {"type": "string", "description": "Seriennummer, Radix-ID, Kundenname, Modell oder IP-Adresse"}},
           ["suche"], r_device_lookup),
+    Route("flotte_zaehlen",
+          "Zählt Geräte der Flotte und gruppiert sie nach Hersteller, Status, Modell oder Kunde "
+          "(optionaler Filter). Für Stückzahl-Fragen wie 'Wie viele Geräte hat Kyocera?', 'Wie viele "
+          "Geräte sind live/still?', 'Wie viele Geräte je Modell?', 'Anzahl Geräte je Kunde?'.",
+          {"nach": {"type": "string", "enum": ["hersteller", "status", "modell", "kunde"],
+                    "description": "Gruppierungs-Dimension (Standard hersteller)"},
+           "filter": {"type": "string",
+                      "description": "optionaler Filter auf die Dimension, z. B. 'Kyocera' oder 'live'"}},
+          [], r_fleet_count),
     Route("toner_standzeit", "Reale Tonerlaufzeit im Vergleich zur Hersteller-Angabe je Modell.",
           {"farbe": {"type": "string", "enum": ["black", "cyan", "magenta", "yellow"]},
            "modell": {"type": "string", "description": "optionaler Modell-Filter"}}, [],
