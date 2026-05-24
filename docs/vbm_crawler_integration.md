@@ -235,7 +235,7 @@ Volltext: [`db/migrations/047_vbm_crawler_supplies.sql`](../db/migrations/047_vb
 | Crawler-Feld (JSON) | `part_lifetime_oem`-Spalte | Notes |
 |---|---|---|
 | `vendorLabel` ("Lexmark") | `manufacturer` | 1:1 |
-| `supplyType` | `part_category` | mapped: `toner`→`toner`, `drum`→`drum`, `developer`→`developing_unit_bw`, `waste_container`→`waste`, `staple_cartridge`→`staple` |
+| `supplyType` | `part_category` | mapped: `toner`/`ink`→`toner`, `drum`→`drum`, **`imaging_unit`/`imaging_kit`→`imaging_unit`** (Drum+Dev kombiniert, ≠ reine Trommel — siehe unten), `developer`→`developing_unit_bw`, `fuser`/`maintenance_kit`→`fuser`, `transfer_belt`/`transfer_kit`→`transfer_belt`, `waste_container`→`waste`, `staple_cartridge`→`staple` |
 | `supplyCode` ("79L2HK0") | `part_number` | 1:1, Vendor-SKU |
 | `yieldPages` (Integer) | `nominal_lifetime_pages` | NULL-Werte werden ausgefiltert (4 Einträge betroffen: 1 Farbband, 2 Fotoleiter, 1 Resttoner) |
 | `color` ("black"/"cyan"/...) | `color_channel` | mapped: `black`→`bw`, `cyan`→`c`, `magenta`→`m`, `yellow`→`y`, `tricolor`→`col`, `unknown`→NULL |
@@ -243,7 +243,7 @@ Volltext: [`db/migrations/047_vbm_crawler_supplies.sql`](../db/migrations/047_vb
 | `yieldVariant` | `yield_variant` | aktuell selten gesetzt, Reserve |
 | `isoStandard` ("ISO/IEC 19798") | `iso_standard` | direkt aus Lexmark-Spec extrahiert, nicht geraten |
 | `sourceUrl` | `source_url` | für Audit |
-| — | `source` | konstant `"vbm_crawler:lexmark_v0.1"` |
+| — | `source` | `"vbm_crawler:<vendor>_v0.1"` (z. B. `lexmark`, `hp`) |
 
 `compatiblePrinters[]` → Zeilen in `part_compatibility` (m:n):
 
@@ -255,6 +255,33 @@ Volltext: [`db/migrations/047_vbm_crawler_supplies.sql`](../db/migrations/047_vb
 | `compatiblePrinters[].model` | `printer_model` |
 | `compatiblePrinters[].vendorPrinterId` | `vendor_printer_id` |
 | `compatiblePrinters[].url` | `printer_url` |
+
+## Teiltyp-Taxonomie: Imaging Unit ≠ Trommel (Migration 048)
+
+Eine **Imaging Unit** ist **Drum + Developer in EINEM Bauteil** (z. B. Lexmark
+MS/MX-Mono: „Belichtungseinheit"). Bei anderen Modellen sind **Trommel**
+(Fotoleiter/photoconductor) und **Entwicklereinheit** getrennte Teile. Das sind
+also drei distinkte Teiltypen — eine Imaging Unit ist *keine* (reine) Trommel.
+
+Bis Migration 047 wurden Imaging Units auf **beiden** Join-Seiten mit reinen
+Trommeln vermischt (Extractor `imaging_unit→drum`; `insights.part_type()` seit
+031 `…imaging…→'Trommel/Drum'`). **Migration 048** trennt das:
+
+- **Crawler** (`detectSupplyType`, KRAI-Crawler-VBM): „Belichtungseinheit" →
+  `imaging_unit` (vorher fälschlich `drum`); „Fotoleitereinheit"/photoconductor
+  bleibt `drum`. Bei Lexmark: 47 „drum" → **25 echte Trommeln + 22 Imaging Units**.
+- **Extractor**: `imaging_unit`/`imaging_kit` → part_category `imaging_unit`.
+- **`insights.part_type()`**: neuer Teiltyp `'Imaging Unit'` (geprüft VOR
+  Toner/Trommel/Entwickler; erkennt `imaging unit`/`belichtungseinheit`/
+  `bildeinheit`/… ); der Trommel-Zweig erkennt jetzt auch `fotoleiter`/`photoconductor`.
+- **`vw_spare_part_events`** OEM-CASE: `imaging_unit` → `'Imaging Unit'`.
+
+Wirkung (Lexmark, gemessen): die früher als „Trommel/Drum" zusammengeworfenen
+OEM-gestützten Frühausfälle splitten korrekt in **Trommel/Drum (9 Zeilen/3 Geräte)
++ Imaging Unit (1/1)**, je gegen ihr *eigenes* OEM-Soll.
+
+> KM-Hinweis: die KM-Excel-Kategorie `image_unit_color` bleibt vorerst auf
+> `'Trommel/Drum'` (KM-Produktsemantik unverifiziert) — separat zu prüfen.
 
 ## Setup (Docker)
 

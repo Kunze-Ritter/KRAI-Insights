@@ -34,9 +34,9 @@ logger = get_logger(__name__)
 _SUPPLY_TYPE_TO_CATEGORY: dict[str, str] = {
     "toner": "toner",
     "ink": "toner",                # fuer die OEM-Soll-Analyse aequivalent
-    "drum": "drum",
-    "imaging_unit": "drum",
-    "imaging_kit": "drum",
+    "drum": "drum",                # reine Trommel / Fotoleiter (photoconductor)
+    "imaging_unit": "imaging_unit",  # Drum + Developer in EINEM Bauteil (eigener Teiltyp)
+    "imaging_kit": "imaging_unit",
     "developer": "developing_unit_bw",
     "fuser": "fuser",
     "transfer_belt": "transfer_belt",
