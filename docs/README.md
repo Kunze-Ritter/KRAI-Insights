@@ -19,6 +19,9 @@ belegbar sein.
   wiederkehrende Datenfallen (Leerstring vs. NULL).
 - **[Kennzahlen-Glossar](kennzahlen.md)** — jede Dashboard-Kennzahl in einem Satz:
   Bedeutung, Quelle, und wo es im Detail steht.
+- **[VBM-Crawler-Anbindung](vbm_crawler_integration.md)** — wie OEM-Soll-Reichweiten
+  für Lexmark/HP/Canon aus dem Schwester-Repo KRAI-Crawler-VBM importiert werden;
+  Architekturentscheidungen, Schema-Mapping, Setup, Rollback.
 
 ## Grundprinzipien
 

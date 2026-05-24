@@ -88,6 +88,11 @@ class Settings(BaseSettings):
     customer_mapping_path: str = "config/customer_mapping.yaml"
     warranty_rules_path: str = "config/warranty_rules.yaml"
 
+    # --- VBM Crawler bridge -------------------------------------------------
+    # Pfad zum `output/` des Schwester-Repos KRAI-Crawler-VBM. Leer = Sibling-
+    # Default (`../KRAI-Crawler-VBM/output/`). Wird von `--vbm-crawler` genutzt.
+    vbm_crawler_output_dir: str = ""
+
     # --- Reverse-proxy basic auth (Phase 6) --------------------------------
     basic_auth_user: str = ""
     basic_auth_password: str = ""
