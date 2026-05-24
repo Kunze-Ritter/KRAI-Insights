@@ -283,6 +283,35 @@ OEM-gestützten Frühausfälle splitten korrekt in **Trommel/Drum (9 Zeilen/3 Ge
 > KM-Hinweis: die KM-Excel-Kategorie `image_unit_color` bleibt vorerst auf
 > `'Trommel/Drum'` (KM-Produktsemantik unverifiziert) — separat zu prüfen.
 
+## Abdeckung: Verschleißteile aus `/printers/accessory/` (Fuser, Transfer, Maintenance)
+
+Lexmark listet **Toner, Imaging Units, Developer, Waste, Heftklammern** unter
+`/printers/supply/` — aber **Fuser, Transferbänder, Fixierstationen, Wartungs-/
+Maintenance-Kits** liegen unter `/printers/accessory/` (page-type `accessory`).
+Der Crawler `discover()` erfasst daher zusätzlich Accessory-URLs, gefiltert auf
+Verschleiß-/Wartungs-Schlagworte (`fuser|fixier|transfer|maintenance|wartung|belt|
+entwickl|bilduebertrag`), damit Nicht-Verbrauchsmaterial (Fächer, Speicher,
+Tastaturkits, Kabel) draußen bleibt.
+
+Besonderheiten dieser Seiten (im Crawler/Parser berücksichtigt):
+- Reichweite steht als **„Durchschnittliches Druckvolumen"** (nicht „Reichweite").
+- `detectSupplyType` ist bindestrich-tolerant (`Transfer-Kit`/`Transfer-Belt`),
+  kennt den `fixier`-Stamm (Fixierstation) und `Transfermodul`, und prüft
+  `maintenance_kit` **nach** transfer/fuser (damit „Transfer-Belt-Wartungskit"
+  als Transferband zählt, nicht als generisches Maintenance-Kit).
+- Extractor-Mapping: `fuser`/`maintenance_kit` → `fuser`, `transfer_belt`/
+  `transfer_kit` → `transfer_belt` (Insights-Teiltypen `'Fixiereinheit'`/`'Transfer'`).
+
+Datenwirkung (Lexmark, Mai 2026): neu **fuser 61** (Median ~200.000 S., inkl.
+Maintenance-Kits), **transfer_belt 6** (~120.000 S.); developer 19→22.
+Garantie-Frühausfälle gewinnen dadurch OEM-gestützte Tiers, die es vorher nicht
+gab: **Fixiereinheit 9 Geräte `konfidenz='hoch'`** + **Transfer 1** (vorher null,
+weil keine Lexmark-Soll-Werte für diese Teiltypen existierten).
+
+> Noch nicht abgedeckt: ADF-/Scanner-Wartungskits landen mangels eigenem
+> Teiltyp als `maintenance_kit → 'Fixiereinheit'` (Näherung). Reine
+> Nicht-Verbrauchsteile (Trays/Speicher) bleiben bewusst außen vor.
+
 ## Setup (Docker)
 
 `.env`:
