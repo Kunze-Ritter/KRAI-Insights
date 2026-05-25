@@ -280,8 +280,11 @@ Wirkung (Lexmark, gemessen): die früher als „Trommel/Drum" zusammengeworfenen
 OEM-gestützten Frühausfälle splitten korrekt in **Trommel/Drum (9 Zeilen/3 Geräte)
 + Imaging Unit (1/1)**, je gegen ihr *eigenes* OEM-Soll.
 
-> KM-Hinweis: die KM-Excel-Kategorie `image_unit_color` bleibt vorerst auf
-> `'Trommel/Drum'` (KM-Produktsemantik unverifiziert) — separat zu prüfen.
+> KM-Hinweis (gelöst, **Migration 050**): die KM-Excel-Kategorie `image_unit_color`
+> (bizhub Color-Imaging-Units IU-xxx = Trommel+Entwickler) ist jetzt ebenfalls
+> `'Imaging Unit'` (vorher `'Trommel/Drum'`). Wirkung: 356 KM-Events / 149 Geräte
+> bekommen OEM-Soll (155k), 48 Frühausfälle/23 Geräte werden OEM-gestützt (`hoch`);
+> der KM-Trommel-Median ist nun sauber (260k, nicht mehr mit 155k vermischt).
 
 ## Abdeckung: Verschleißteile aus `/printers/accessory/` (Fuser, Transfer, Maintenance)
 
