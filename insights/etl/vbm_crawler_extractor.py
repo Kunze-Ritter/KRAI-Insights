@@ -42,6 +42,7 @@ _SUPPLY_TYPE_TO_CATEGORY: dict[str, str] = {
     "transfer_belt": "transfer_belt",
     "transfer_kit": "transfer_belt",
     "maintenance_kit": "fuser",    # naechste Verwandte im KM-Schema
+    "adf_kit": "adf",              # ADF/ADZ-Dokumenteneinzug-Wartung -> Teiltyp Scanner/ADF
     "waste_container": "waste",
     "staple_cartridge": "staple",
     "other": "other",

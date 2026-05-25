@@ -308,9 +308,14 @@ Garantie-Frühausfälle gewinnen dadurch OEM-gestützte Tiers, die es vorher nic
 gab: **Fixiereinheit 9 Geräte `konfidenz='hoch'`** + **Transfer 1** (vorher null,
 weil keine Lexmark-Soll-Werte für diese Teiltypen existierten).
 
-> Noch nicht abgedeckt: ADF-/Scanner-Wartungskits landen mangels eigenem
-> Teiltyp als `maintenance_kit → 'Fixiereinheit'` (Näherung). Reine
-> Nicht-Verbrauchsteile (Trays/Speicher) bleiben bewusst außen vor.
+ADF-/ADZ-/Dokumenteneinzug-Wartungskits sind ein **eigener Teiltyp `'Scanner/ADF'`**
+(Crawler-Typ `adf_kit` → Kategorie `adf`, **Migration 049**) — vorher als
+`maintenance_kit → 'Fixiereinheit'` genähert. Lexmark: **adf 12** (Median ~135.000 S.);
+dadurch ist der Fixiereinheit-Median (~200.000) nicht mehr mit ADF-Werten vermischt
+(`fuser` 61→49). `part_type()` erkennt ADZ/Dokumentenzuführung und wird VOR
+`Walze/Roller` geprüft (ADF-Kits enthalten Rollen, zählen aber als Scanner/ADF).
+
+> Reine Nicht-Verbrauchsteile (Trays/Speicher/Kabel) bleiben bewusst außen vor.
 
 ## Setup (Docker)
 
