@@ -249,3 +249,42 @@ bleibt eine Geschäftsregel.
 - Aggregat: `vw_lagebericht` (Headline-Zahlen), `vw_warranty_by_manufacturer`
   (je Hersteller, mit erstattbarem Wert).
 - Soll-Laufleistung: `ACCMARKERREFILL.CoveragePagesTarget` (OEM-Angabe).
+
+## 8. Füllstand-Korrektur — Claim nur bei (nahezu) leerer Kartusche (Migration 053)
+
+**Befund (2026-05-26, user-getrieben):** Die Claim-Logik flaggte jede Kartusche
+mit < 70 % der (deckungsbereinigten) OEM-Reichweite als „claim" — **ohne zu prüfen,
+ob die Kartusche beim Tausch überhaupt leer war**. Eine halbvoll herausgenommene
+Kartusche druckt ebenfalls wenig Seiten und wurde fälschlich als Frühausfall gezählt.
+
+Gemessen 2025: von 176 serial-belegten Claims waren nur **48 (27 %)** wirklich
+(nahezu) leer; **115 (65 %)** wurden mit > 30 % Restfüllung getauscht (Ø 49 % voll).
+Beispiel „Weiss_Automotive": 95 „Claims", aber der April-Spike (53) war ein
+**Massen-Tausch halbvoller Kartuschen** (Ø 44 % Rest) — kein Defekt.
+
+**Diskriminator:** `vw_vbm_lifecycle.level_last` = Füllstand der **ausgehenden**
+Kartusche (0–100 %, FleetMgmt-SNMP). Echter Frühausfall = leer **und** < 70 %
+geliefert (Short-Fill/Defekt). Hoher Füllstand = noch Toner drin → früh getauscht.
+
+**Fix (`vw_warranty_assessment`):**
+- `claim`/`negotiation` nur noch, wenn `level_last <= 20` **oder** unbekannt
+  (NULL → konservativ behalten, um echte Claims bei fehlendem Füllstand nicht zu verlieren).
+- **Neue Klasse `vorzeitiger_tausch`**: Kartusche mit `level_last > 20` rausgenommen.
+  Kein Defekt, sondern **weggeworfener Toner**.
+
+**Effekt:** Claims 2025 **221 → 108** (Ø Füllstand 3 %, Ø 34 % OEM = echte Short-Fills);
+all-time **~3.174 → 488**. Die alte Headline war durch vorzeitige Tausche ~6× überhöht.
+
+### Toner-Verschwendung als eigene Geld-Quelle (`vw_toner_waste`)
+Die `vorzeitiger_tausch`-Fälle sind kein Müll, sondern eine **Recovery-/Beratungs-
+Quelle**: der Kunde wirft nutzbaren Toner weg. `vw_toner_waste` aggregiert je Kunde:
+Anzahl Tausche, Ø Restfüllung, geschätzter weggeworfener Wert (Restfüllung ×
+Tonerpreis je Hersteller, Fallback Gesamt-Median aus `vw_toner_price_ref`).
+
+2025: **279 vorzeitige Tausche ≈ 5.468 € weggeworfener Toner**. Top: Weiss_Automotive
+(905 €, 83 Tausche, Ø 61 % Restfüllung), Stadt Konstanz (569 €), Hirschbrauerei (493 €).
+→ Aktionsliste für Vertrag-/Beratungsgespräche statt Phantom-Garantieanträge.
+
+> HINWEIS: `level_last` ist FleetMgmt-SNMP, auf 0–100 % begrenzt; außerhalb/NULL =
+> unbekannt (dann altes Verhalten). Schwelle 20 % gewählt, weil Geräte „Toner
+> ersetzen" typ. erst < ~10 % melden — > 20 % Restfüllung ist klar proaktiv.
