@@ -1,7 +1,8 @@
 # Gerät → Verbrauchsmaterial (vw_device_supplies, Migration 051)
 
 > **Status:** Migrationen **051 + 052** angewendet (Stand 2026-05-26).
-> Lexmark **0 % → 99,8 %**, HP **99,9 %**, Kyocera **0 % → 88 %** (web-verifiziert).
+> **Lexmark 100 %** (924/924), **HP 100 %** der Toner-Drucker (3957/3957; 4× IDP2103
+> = ID-Karten-Drucker, kein Toner), **Kyocera 0 % → 97 %** (176/181, web-verifiziert).
 > (Lexmark: 92 % aus 051 + Rest via Crawler-Vertrags-Aliase; Kyocera: Seed-Pfad, s. u.)
 
 ## Migration 052 — Hersteller-Guard modellpräfix-unabhängig
@@ -33,10 +34,15 @@ Dateinamen der Service-Manuals (`UTAX/2508ci_3508ci.pdf` …); die Manuals selbs
 enthalten keine Reichweiten (reine Techniker-Doku), aber der UTAX-Modellname
 machte die Reichweiten web-recherchierbar.
 
-**Bewusst offen** (~22 Einzelgeräte, nicht geraten): TASKalfa-Color-Einzelgeräte
-(352ci/MZ3501ci/4053ci/6053ci/350ci/306ci/402ci/2551ci/4012i/4054ci/6003i),
-ECOSYS P6130cdn/P6235cdn/M3645idn/PA4500x, FS-3640MFP/FS-6530MFP — Long-Tail, je
-ein Seed-Eintrag mehr sobald belegt.
+**Bewusst offen** (5 Einzelgeräte, nicht geraten): TASKalfa MZ3501ci + ECOSYS
+PA4500x (neueste 2022er-Generation, Reichweite mehrdeutig) + 402ci (obskur) —
+brauchen die autoritative Kyocera-Händlerliste, je ein Seed-Eintrag mehr.
+
+**Lexmark 100 %:** auch das letzte Modell XM3142 (Plattform MXTCT, kein
+Flotten-Twin) ist über einen Alias auf MX432 (gleiche 24B7005/55B-Toner-Familie,
+Lexmark-Handbuch-Gruppe MX432/XM3142) abgedeckt. **HP:** die 4 verbleibenden
+„IDP2103" sind ID-Karten-Drucker (Ribbon, kein Toner) → wie Zebra/EFI aus dem
+Toner-Nenner ausgenommen.
 >
 > Diese Doku erklärt, **warum** die naive Verknüpfung Gerät↔Verbrauchsmaterial
 > bei Lexmark scheiterte und **wie** `vw_device_supplies` das in drei
