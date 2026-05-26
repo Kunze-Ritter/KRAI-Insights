@@ -1,7 +1,8 @@
 # Gerät → Verbrauchsmaterial (vw_device_supplies, Migration 051)
 
 > **Status:** Migration **051** angewendet (Stand 2026-05-26).
-> Lexmark-Abdeckung **0 % → 92 %**, HP unverändert **99,9 %**.
+> Lexmark-Abdeckung **0 % → 99,8 %**, HP unverändert **99,9 %**.
+> (92 % aus der Migration selbst + Rest via Crawler-Vertrags-Aliase, s. u.)
 >
 > Diese Doku erklärt, **warum** die naive Verknüpfung Gerät↔Verbrauchsmaterial
 > bei Lexmark scheiterte und **wie** `vw_device_supplies` das in drei
@@ -78,13 +79,29 @@ und `71C0Z50`-Imaging-Unit von CX735adse (die echten CX73x-Verbrauchsmaterialien
 ihr **genau ein** abgedecktes Consumer-Modell liegt (`HAVING count(DISTINCT
 dev_key) = 1`). Misch-Plattformen mit mehreren Supply-Familien werden übersprungen.
 
-## Verbleibende Lücke (~8 % Lexmark, 74 Geräte live)
+## Vertrags-Rebrand-Aliase (Crawler-seitig, schließt 92 % → 99,8 %)
 
-Vertrags-Modelle auf Plattformen **ohne** abgedecktes Consumer-Pendant in unserer
-Flotte: `C4342`/`C4352` (`CSTMM`), `M3250` (`MSTGM`), `C2326` (`CSLBN`),
-`XM3142` (`MXTCT`) u. a. Diese brauchen Crawler-Daten, die der Crawler noch nicht
-hat (Color-Single-Function-C-Serie + einzelne Mono-Plattformen). → Folge-Arbeit
-crawler-seitig (Aufnahme der fehlenden Consumer-Modelle), siehe
+Die 74 nach der Migration noch offenen Lexmark-Geräte waren **Vertrags-/GSA-Modelle**
+(C/M/XC/XM), deren Plattform in unserer Flotte kein direkt abgedecktes Consumer-Gerät
+hat (Plattform-Brücke greift nicht). Lösung crawler-seitig: `seeds/lexmark-aliases.json`
++ `enrich_lexmark_aliases.mjs` hängen den Vertrags-Namen an die `compatiblePrinters`
+des Consumer-Twins (gleiche Hardware = identische Supplies). Danach trifft der
+`model_key`-Match aus dieser Migration direkt. Jeder Alias ist belegt:
+
+| Vertrags-Modell | n | Consumer-Twin | Beleg |
+|---|---|---|---|
+| M1246 | 36 | MS621 (56F) | Lexmark-Handbuch B2546/B2650/M1246/MS521/MS621 + Plattform MSNGM |
+| C4342 / C4352 | 28 | CS730 / CS735 (71C/81C) | Lexmark-Handbuch-Gruppe CS73x |
+| C2326 | 4 | CS431 (78C) | Lexmark-Handbuch C2326/CS331/CS431 |
+| XC4140 / XC4150 | 4 | CX725 | Plattform CXTAT |
+
+## Verbleibende Lücke (~0,2 % Lexmark, 2 Geräte live)
+
+Nur noch **XM3142** (2 Geräte, Plattform `MXTCT`): kein sauber verifizierbarer
+Toner-Twin (MXTCT passt nicht zur MX331/MX431-Gruppe, die auf `MXLBD` liegt) →
+bewusst **nicht** geraten, um keine falsche OEM-Soll-Reichweite einzuschleusen.
+Schließbar, sobald das korrekte Consumer-Pendant bestätigt ist (dann ein weiterer
+Eintrag in `seeds/lexmark-aliases.json`). Siehe
 [VBM-Crawler-Anbindung](vbm_crawler_integration.md).
 
 KM (`Konica Minolta`) erscheint hier mit 0 % — **gewollt**: KM-OEM-Soll kommt aus
