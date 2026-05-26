@@ -175,6 +175,37 @@ def r_toner_waste(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_toner_waste", sql))
 
 
+def r_waste_forecast(args: dict[str, Any]) -> AnswerCard:
+    dring = (args.get("dringlichkeit") or "").strip().lower()
+    kunde = (args.get("kunde") or "").strip()
+    where = ["mess_qualitaet = 'verlässlich'"]
+    params: dict[str, Any] = {}
+    if dring in ("faellig", "bald"):
+        where.append("dringlichkeit = :dr")
+        params["dr"] = dring
+    else:
+        where.append("dringlichkeit IN ('faellig', 'bald')")
+    if kunde:
+        where.append("customer_name ILIKE :cl")
+        params["cl"] = f"%{kunde}%"
+    sql = (
+        "SELECT customer_name AS kunde, customer_city AS ort, model_display AS modell, "
+        "device_serial AS seriennummer, radix_device_number AS radix_id, pct_voll, "
+        "tage_bis_voll, referenz_seiten AS box_reichweite_seiten, dringlichkeit "
+        f"FROM insights.vw_waste_box_forecast WHERE {' AND '.join(where)} "
+        "ORDER BY pct_voll DESC NULLS LAST LIMIT 100"
+    )
+    df = _df(sql, params)
+    txt = (
+        f"{len(df)} Resttonerbehälter mit verlässlicher Seitenzähler-Prognose (fällig/bald) → proaktiv "
+        "liefern, bevor der Behälter voll ist. Prognose über den Seitenzähler (zuverlässig), NICHT über den "
+        "Füllstand-Sensor (den messen viele Geräte schlecht). Hinweis: bei Modellen mit unzuverlässigem "
+        "Sensor (Lexmark XC/CX, HP E87xx, Kyocera-Color) gibt es keine Punkt-Prognose — dort die "
+        "Box-Reichweite (referenz_seiten) als feste Liefer-Kadenz nutzen."
+    )
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_waste_box_forecast", sql))
+
+
 # --- Routes -----------------------------------------------------------------
 def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     q = (args.get("suche") or "").strip()
@@ -644,6 +675,15 @@ REGISTRY: list[Route] = [
           "'vorzeitige Tausche', 'halbvolle Kartuschen'.",
           {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
           r_toner_waste),
+    Route("resttoner_vorhersage",
+          "Resttonerbehälter (Waste-Box), die bald voll sind — proaktive Liefer-Liste über den "
+          "SEITENZÄHLER (zuverlässig), nicht den Füllstand-Sensor (den messen viele Geräte schlecht). "
+          "Für Fragen wie 'welche Resttonerbehälter sind fällig', 'Waste-Box bald voll', "
+          "'Resttonerbehälter liefern', 'Tonerauffangbehälter Vorhersage'.",
+          {"dringlichkeit": {"type": "string", "enum": ["faellig", "bald"],
+                             "description": "faellig = >=80 % voll, bald = 60-80 % (Standard: beide)"},
+           "kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
+          r_waste_forecast),
     Route("deckung_kunden",
           "Kunden mit realer Druck-Deckung über einer Schwelle (Standard 6 % = Klickpreis-Annahme) — "
           "Kandidaten für Klickpreis-Nachberechnung, weil sie mehr Toner verbrauchen als berechnet.",
