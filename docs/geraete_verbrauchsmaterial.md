@@ -1,7 +1,7 @@
 # Gerät → Verbrauchsmaterial (vw_device_supplies, Migration 051)
 
 > **Status:** Migrationen **051 + 052** angewendet (Stand 2026-05-26).
-> Lexmark **0 % → 99,8 %**, HP **99,9 %**, Kyocera **0 % → 41 %** (Top-Modelle).
+> Lexmark **0 % → 99,8 %**, HP **99,9 %**, Kyocera **0 % → 59 %** (web-verifiziert).
 > (Lexmark: 92 % aus 051 + Rest via Crawler-Vertrags-Aliase; Kyocera: Seed-Pfad, s. u.)
 
 ## Migration 052 — Hersteller-Guard modellpräfix-unabhängig
@@ -19,11 +19,15 @@ mit unpräfigierten Modellnamen.
 Kyocera (3.-größter Bestand, 181 live) wird **nicht live gecrawlt** (Website nur
 PDF/JS, Modellnamen uneinheitlich) → kuratierter Seed mit **verifizierten**
 OEM-Reichweiten je Flotten-Modell, Exact-Match über `vw_device_supplies`.
-Abgedeckt (Stand 2026-05-26, 75/181 = 41 %): FS-2100DN, ECOSYS M3540idn/P3045dn/
-P3145dn/M3145idn/P2040dn, TASKalfa 3252ci/3253ci. **Bewusst offen** (mehrdeutige
-Toner-Reichweiten, nicht geraten): TASKalfa 2508ci/3508ci-Serie, P-Serie
-(UTAX/TA-Rebrands), ECOSYS-Color, PA-Serie — diese brauchen die autoritative
-Kyocera-Verbrauchsmaterial-Liste (Händler-Quelle), dann je ein Seed-Eintrag mehr.
+Abgedeckt (Stand 2026-05-26, 107/181 = 59 %, alle Reichweiten web-verifiziert):
+FS-2100DN, FS-4100DN, ECOSYS M3540idn/P3045dn/P3145dn/M3145idn/P2040dn/P7040cdn/
+M6535cidn/P5026cdn/M5526cdn/M5521cdn, TASKalfa 3252ci/3253ci/3554ci, P-C3062DN +
+P-4020DN (UTAX/TA-Rebrands). **Bewusst offen** (Reichweite nicht eindeutig
+belegbar → nicht geraten): die **TASKalfa x08ci-Serie** (2508ci 36×/3508ci/4008ci/
+5008ci = größte Einzellücke; 2022er-Generation, online verwechselt mit
+250ci/2552ci/2554ci), P-C356x/P-4536i (PK-5018?), diverse TASKalfa-Color- und
+ECOSYS-Einzelgeräte. Diese brauchen die autoritative Kyocera/UTAX-Verbrauchs-
+material-Liste (Händler-Quelle) — dann je ein Seed-Eintrag mehr.
 >
 > Diese Doku erklärt, **warum** die naive Verknüpfung Gerät↔Verbrauchsmaterial
 > bei Lexmark scheiterte und **wie** `vw_device_supplies` das in drei
