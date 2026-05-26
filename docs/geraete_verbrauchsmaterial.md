@@ -1,8 +1,29 @@
 # Gerät → Verbrauchsmaterial (vw_device_supplies, Migration 051)
 
-> **Status:** Migration **051** angewendet (Stand 2026-05-26).
-> Lexmark-Abdeckung **0 % → 99,8 %**, HP unverändert **99,9 %**.
-> (92 % aus der Migration selbst + Rest via Crawler-Vertrags-Aliase, s. u.)
+> **Status:** Migrationen **051 + 052** angewendet (Stand 2026-05-26).
+> Lexmark **0 % → 99,8 %**, HP **99,9 %**, Kyocera **0 % → 41 %** (Top-Modelle).
+> (Lexmark: 92 % aus 051 + Rest via Crawler-Vertrags-Aliase; Kyocera: Seed-Pfad, s. u.)
+
+## Migration 052 — Hersteller-Guard modellpräfix-unabhängig
+
+051 prüfte die Hersteller-Zugehörigkeit über das erste Wort des Druckernamens
+(`split_part(printer_model,' ',1)`). Das passt für Lexmark/HP (Marke steht vorne),
+**bricht aber bei Kyocera**, dessen Flotten-Modelle ohne Marken-Präfix geführt
+werden (`TASKalfa 2508ci`, `ECOSYS M3540idn`, `FS-2100DN`). 052 prüft stattdessen
+gegen das echte Hersteller-Feld des Supplies (`ps.manufacturer`) — für Lexmark/HP
+identisch, für Kyocera korrekt. Damit greift der Exact-Match auch für Hersteller
+mit unpräfigierten Modellnamen.
+
+## Kyocera (Seed-Pfad, Migration 052 + Crawler `seeds/kyocera.json`)
+
+Kyocera (3.-größter Bestand, 181 live) wird **nicht live gecrawlt** (Website nur
+PDF/JS, Modellnamen uneinheitlich) → kuratierter Seed mit **verifizierten**
+OEM-Reichweiten je Flotten-Modell, Exact-Match über `vw_device_supplies`.
+Abgedeckt (Stand 2026-05-26, 75/181 = 41 %): FS-2100DN, ECOSYS M3540idn/P3045dn/
+P3145dn/M3145idn/P2040dn, TASKalfa 3252ci/3253ci. **Bewusst offen** (mehrdeutige
+Toner-Reichweiten, nicht geraten): TASKalfa 2508ci/3508ci-Serie, P-Serie
+(UTAX/TA-Rebrands), ECOSYS-Color, PA-Serie — diese brauchen die autoritative
+Kyocera-Verbrauchsmaterial-Liste (Händler-Quelle), dann je ein Seed-Eintrag mehr.
 >
 > Diese Doku erklärt, **warum** die naive Verknüpfung Gerät↔Verbrauchsmaterial
 > bei Lexmark scheiterte und **wie** `vw_device_supplies` das in drei
