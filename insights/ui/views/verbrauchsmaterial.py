@@ -15,6 +15,7 @@ from sqlalchemy import text
 WARRANTY_LABEL = {
     "claim": "Garantiefall",
     "negotiation": "Verhandlungs-Kandidat",
+    "vorzeitiger_tausch": "Vorzeitiger Tausch (Verschwendung)",
     "wear": "Verschleiß (normal)",
     "normal": "Normal",
     "artifact": "Messartefakt",
@@ -44,7 +45,10 @@ def kennzahlen() -> dict:
                 text("SELECT warranty_class, count(*) FROM insights.vw_warranty_assessment GROUP BY warranty_class")
             ).all()
         )
-    return {"cls": cls, "flott": flott, "garantie": garantie}
+        waste_eur = conn.execute(
+            text("SELECT COALESCE(sum(verschwendung_eur), 0) FROM insights.vw_toner_waste")
+        ).scalar()
+    return {"cls": cls, "flott": flott, "garantie": garantie, "waste_eur": waste_eur}
 
 
 @st.cache_data(ttl=300)
@@ -61,15 +65,19 @@ setup_page(
 st.caption(f"📖 Garantie-Logik, Fehlmeldungs-Filter & Restwert-Modell: [Doku Garantie]({doc('garantie.md')})")
 
 k = kennzahlen()
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Echte Wechsel (mit Seriennummer)", f"{k['cls'].get('real_new_cartridge', 0):,}".replace(",", "."))
-c2.metric("Wiedereingesetzt", f"{k['cls'].get('reinsert_same', 0):,}".replace(",", "."))
-c3.metric("Standzeit vs. Hersteller-Soll", f"{int(k['flott'])} %" if k["flott"] else "—")
-c4.metric("Mögliche Garantiefälle", f"{k['garantie'].get('claim', 0):,}".replace(",", "."))
+c2.metric("Standzeit vs. Hersteller-Soll", f"{int(k['flott'])} %" if k["flott"] else "—")
+c3.metric("Mögliche Garantiefälle", f"{k['garantie'].get('claim', 0):,}".replace(",", "."),
+          help="Nur (nahezu) leere Kartuschen unter 70 % Soll-Tonermenge — echte Frühausfälle.")
+c4.metric("Vorzeitige Tausche", f"{k['garantie'].get('vorzeitiger_tausch', 0):,}".replace(",", "."),
+          help="Kartuschen mit hoher Restfüllung weggeworfen — kein Defekt, sondern Verschwendung.")
+c5.metric("Weggeworfener Toner", f"~{int(k['waste_eur'] or 0):,} €".replace(",", "."),
+          help="Geschätzter Wert des weggeworfenen Toners (Restfüllung x Tonerpreis).")
 
 st.divider()
-tab_yield, tab_garantie, tab_geraet = st.tabs(
-    ["Standzeit vs. Hersteller-Soll", "Garantie-Bewertung", "Verlauf je Gerät"]
+tab_yield, tab_garantie, tab_waste, tab_geraet = st.tabs(
+    ["Standzeit vs. Hersteller-Soll", "Garantie-Bewertung", "💸 Toner-Verschwendung", "Verlauf je Gerät"]
 )
 
 with tab_yield:
@@ -155,6 +163,46 @@ with tab_garantie:
             "warranty_class": "Bewertung",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Eintrag/Einträge (max. 500)")
+    st.dataframe(df, width="stretch", hide_index=True)
+
+with tab_waste:
+    st.markdown("**Toner-Verschwendung: Kartuschen, die mit hoher Restfüllung weggeworfen wurden.**")
+    st.caption(
+        "Kein Garantiefall, sondern eine eigene Geld-Quelle: hier wirft der Kunde nutzbaren Toner weg "
+        "(Kartusche > 20 % voll getauscht). Geschätzter Wert = Restfüllung x Tonerpreis je Hersteller. "
+        "Aktionsliste fürs Vertrags-/Beratungsgespräch."
+    )
+    such_w = st.text_input("Filter — Kunde (optional)", "", key="waste_filter")
+    clauses_w = ["TRUE"]
+    params_w: dict = {}
+    if such_w.strip():
+        clauses_w.append("customer_name ILIKE :q")
+        params_w["q"] = f"%{such_w.strip()}%"
+    df = frame(
+        "SELECT customer_name, customer_city, manufacturer_canonical, vorzeitige_tausche, geraete, "
+        "avg_restfuellung_pct, verschwendung_eur "
+        f"FROM insights.vw_toner_waste WHERE {' AND '.join(clauses_w)} "
+        "ORDER BY verschwendung_eur DESC LIMIT 200",
+        params_w,
+    )
+    if not df.empty:
+        total = int(pd.to_numeric(df["verschwendung_eur"], errors="coerce").sum())
+        tausche = int(pd.to_numeric(df["vorzeitige_tausche"], errors="coerce").sum())
+        m1, m2 = st.columns(2)
+        m1.metric("Weggeworfener Toner (gefiltert)", f"~{total:,} €".replace(",", "."))
+        m2.metric("Vorzeitige Tausche", f"{tausche:,}".replace(",", "."))
+        cd = df[["customer_name", "verschwendung_eur"]].copy()
+        cd["verschwendung_eur"] = pd.to_numeric(cd["verschwendung_eur"], errors="coerce")
+        render_chart(bar(
+            cd, x="verschwendung_eur", y="customer_name", single_color=NEG, top=15,
+            labels={"verschwendung_eur": "Weggeworfener Toner (€)", "customer_name": "Kunde"},
+            title="Top-Kunden nach weggeworfenem Toner (€)",
+        ))
+        df = df.rename(columns={
+            "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
+            "vorzeitige_tausche": "Vorzeitige Tausche", "geraete": "Geräte",
+            "avg_restfuellung_pct": "Ø Restfüllung %", "verschwendung_eur": "Weggeworfen (€)",
+        })
     st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_geraet:

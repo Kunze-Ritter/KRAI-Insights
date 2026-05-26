@@ -155,6 +155,26 @@ def r_warranty_overview(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_warranty_by_manufacturer", sql))
 
 
+def r_toner_waste(args: dict[str, Any]) -> AnswerCard:
+    kunde = (args.get("kunde") or "").strip()
+    sql = (
+        "SELECT customer_name AS kunde, customer_city AS ort, manufacturer_canonical AS hersteller, "
+        "vorzeitige_tausche, geraete, avg_restfuellung_pct AS avg_restfuellung_pct, verschwendung_eur "
+        "FROM insights.vw_toner_waste WHERE (:c = '' OR customer_name ILIKE :cl) "
+        "ORDER BY verschwendung_eur DESC LIMIT 100"
+    )
+    df = _df(sql, {"c": kunde, "cl": f"%{kunde}%"})
+    total = int(df["verschwendung_eur"].sum()) if not df.empty else 0
+    n = int(df["vorzeitige_tausche"].sum()) if not df.empty else 0
+    txt = (
+        f"Toner-Verschwendung: {n} vorzeitige Tausche (Kartuschen mit hoher Restfüllung weggeworfen) "
+        f"≈ {_eur(total)} weggeworfener Toner (Restfüllung x Tonerpreis je Hersteller). Das ist KEIN "
+        "Garantiefall, sondern eine eigene Recovery-/Beratungs-Quelle: der Kunde wirft nutzbaren Toner weg "
+        "→ Thema fürs Vertrags-/Beratungsgespräch. Top-Kunden in der Tabelle."
+    )
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_toner_waste", sql))
+
+
 # --- Routes -----------------------------------------------------------------
 def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     q = (args.get("suche") or "").strip()
@@ -617,6 +637,13 @@ REGISTRY: list[Route] = [
           "Garantie-Auswertung: wie viele reklamierbare Garantiefälle, geschätzter Wert in Euro, "
           "und Verteilung nach Hersteller (wo die Reklamation lohnt).",
           {}, [], r_warranty_overview),
+    Route("toner_verschwendung",
+          "Kunden, die Toner verschwenden: Kartuschen mit hoher Restfüllung zu früh getauscht (halbvoll "
+          "weggeworfen) — geschätzter weggeworfener Wert in Euro je Kunde. KEIN Garantiefall, sondern "
+          "Beratungs-/Abrechnungs-Quelle. Für Fragen wie 'wer wirft Toner weg', 'Toner-Verschwendung', "
+          "'vorzeitige Tausche', 'halbvolle Kartuschen'.",
+          {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
+          r_toner_waste),
     Route("deckung_kunden",
           "Kunden mit realer Druck-Deckung über einer Schwelle (Standard 6 % = Klickpreis-Annahme) — "
           "Kandidaten für Klickpreis-Nachberechnung, weil sie mehr Toner verbrauchen als berechnet.",
