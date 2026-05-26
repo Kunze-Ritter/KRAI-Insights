@@ -288,3 +288,35 @@ Tonerpreis je Hersteller, Fallback Gesamt-Median aus `vw_toner_price_ref`).
 > HINWEIS: `level_last` ist FleetMgmt-SNMP, auf 0–100 % begrenzt; außerhalb/NULL =
 > unbekannt (dann altes Verhalten). Schwelle 20 % gewählt, weil Geräte „Toner
 > ersetzen" typ. erst < ~10 % melden — > 20 % Restfüllung ist klar proaktiv.
+
+## 9. Resttonerbehälter-Vorhersage über den Seitenzähler (Migration 055)
+
+**Problem (user, 2026-05-26):** Kopierer messen den Resttonerbehälter (Waste-Box)
+schlecht — **52 % aller Waste-Box-„Events" im FleetMgmt-VBM sind Rauschen**
+(< 5.000 Seiten = kein echter Tausch), bei Lexmark XC/CX, HP E87xx und
+Kyocera-Color **80–100 %**. Folge: der volle Behälter fällt erst auf, wenn er
+voll ist → Lieferung zu spät.
+
+**Lösung (`vw_waste_box_forecast`):** über den **Seitenzähler** (zuverlässig)
+statt den Füllstand-Sensor prognostizieren. Pro Live-Gerät mit Waste-Box:
+Seiten seit letztem ECHTEN Wechsel (pages_since_previous ≥ 5.000) vs. einer
+Box-Reichweite Y je Modell:
+1. **Modell-realisiert** — Median echter Wechsel je Modell, ≥ 5 Stichproben
+   (verlässlich v. a. KM bizhub: C450i ~49k, C458 ~77k, C258/C308 ~43–45k S.).
+2. **OEM-Soll Waste** je Hersteller (aktuell nur Lexmark ~35.500 S.).
+3. **Flotten-Median** (Notnagel).
+
+`mess_qualitaet`:
+- **verlässlich** — innerhalb der aktuellen Box (Seiten seit Wechsel ≤ 1,2·Y) →
+  echte Punkt-Prognose (`pct_voll`, `tage_bis_voll`).
+- **unsicher (Wechsel nicht erfasst)** — Seiten seit letztem erfassten Wechsel
+  ≫ Y (zwischenzeitliche Tausche als Rauschen verloren) → kein Punkt-Forecast.
+- **unsicher (Sensor-Rauschen)** — kein einziger echter Wechsel erfasst → nur Y
+  als Richtwert für eine **feste Liefer-Kadenz**.
+
+`dringlichkeit` (nur für verlässliche): faellig ≥ 80 % · bald 60–80 % · ok.
+
+**Ergebnis:** **61 fällig + 63 bald = verlässliche proaktive Liefer-Liste**
+(überwiegend KM bizhub); 3.315 Geräte mit kaputtem Sensor sind ehrlich als
+„unsicher" markiert (feste Kadenz nach Y). UI: Verbrauchsmaterial-Seite Tab
+„🗑️ Resttonerbehälter"; Agent-Route `resttoner_vorhersage`.

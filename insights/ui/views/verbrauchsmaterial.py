@@ -76,8 +76,9 @@ c5.metric("Weggeworfener Toner", f"~{int(k['waste_eur'] or 0):,} €".replace(",
           help="Geschätzter Wert des weggeworfenen Toners (Restfüllung x Tonerpreis).")
 
 st.divider()
-tab_yield, tab_garantie, tab_waste, tab_geraet = st.tabs(
-    ["Standzeit vs. Hersteller-Soll", "Garantie-Bewertung", "💸 Toner-Verschwendung", "Verlauf je Gerät"]
+tab_yield, tab_garantie, tab_waste, tab_box, tab_geraet = st.tabs(
+    ["Standzeit vs. Hersteller-Soll", "Garantie-Bewertung", "💸 Toner-Verschwendung",
+     "🗑️ Resttonerbehälter", "Verlauf je Gerät"]
 )
 
 with tab_yield:
@@ -204,6 +205,54 @@ with tab_waste:
             "avg_restfuellung_pct": "Ø Restfüllung %", "verschwendung_eur": "Weggeworfen (€)",
         })
     st.dataframe(df, width="stretch", hide_index=True)
+
+with tab_box:
+    st.markdown("**Resttonerbehälter-Vorhersage über den Seitenzähler (proaktive Lieferung).**")
+    st.caption(
+        "Viele Geräte messen den Resttonerbehälter schlecht (52 % der Sensor-Events sind Rauschen). "
+        "Deshalb prognostizieren wir über den zuverlässigen Seitenzähler: Seiten seit letztem echten "
+        "Wechsel vs. Box-Reichweite je Modell (KM realisiert / Lexmark OEM-Soll / Flotten-Median). "
+        "Nur Geräte mit verlässlichem Anker bekommen eine Punkt-Prognose; bei unzuverlässigem Sensor "
+        "(Lexmark XC/CX, HP E87xx, Kyocera-Color) bitte feste Kadenz nach der Box-Reichweite planen."
+    )
+    dring = st.multiselect("Dringlichkeit", options=["faellig", "bald", "ok"], default=["faellig", "bald"],
+                           format_func=lambda d: {"faellig": "Fällig (≥80 %)", "bald": "Bald (60-80 %)",
+                                                  "ok": "OK (<60 %)"}.get(d, d))
+    such_b = st.text_input("Filter — Kunde (optional)", "", key="box_filter")
+    clauses_b = ["mess_qualitaet = 'verlässlich'"]
+    params_b: dict = {}
+    if dring:
+        clauses_b.append("dringlichkeit = ANY(:dr)")
+        params_b["dr"] = dring
+    if such_b.strip():
+        clauses_b.append("customer_name ILIKE :q")
+        params_b["q"] = f"%{such_b.strip()}%"
+    df = frame(
+        "SELECT customer_name, customer_city, manufacturer_canonical, model_display, device_serial, "
+        "radix_device_number, pct_voll, tage_bis_voll, seiten_seit_wechsel, referenz_seiten, referenz_basis, "
+        "dringlichkeit FROM insights.vw_waste_box_forecast "
+        f"WHERE {' AND '.join(clauses_b)} ORDER BY pct_voll DESC NULLS LAST LIMIT 300",
+        params_b,
+    )
+    faellig_n = int((df["dringlichkeit"] == "faellig").sum()) if not df.empty else 0
+    m1, m2 = st.columns(2)
+    m1.metric("Fällig (≥80 % voll)", f"{faellig_n}")
+    m2.metric("Liste (gefiltert)", f"{len(df)}")
+    if not df.empty:
+        df["dringlichkeit"] = df["dringlichkeit"].map(
+            {"faellig": "Fällig", "bald": "Bald", "ok": "OK"}).fillna(df["dringlichkeit"])
+        df = df.rename(columns={
+            "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
+            "model_display": "Modell", "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",
+            "pct_voll": "% voll (geschätzt)", "tage_bis_voll": "Tage bis voll",
+            "seiten_seit_wechsel": "Seiten seit Wechsel", "referenz_seiten": "Box-Reichweite (Seiten)",
+            "referenz_basis": "Referenz-Basis", "dringlichkeit": "Dringlichkeit",
+        })
+    st.dataframe(df, width="stretch", hide_index=True)
+    st.caption(
+        "Hinweis: Tage bis voll negativ = bereits überfällig (sofort liefern). Geräte mit unzuverlässigem "
+        "Sensor sind hier ausgeblendet — ihre Box-Reichweite je Modell steht in der Standzeit-Doku."
+    )
 
 with tab_geraet:
     st.markdown("**Material-Verlauf eines einzelnen Geräts.**")
