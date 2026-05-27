@@ -184,8 +184,10 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
 - **26 automatisierte Tests grün**, Code-Linting sauber.
 - Hersteller-Crawler in eigenem Repo (Daten in versionierten Seeds — gehen nie
   verloren, per `npm run refresh` aktualisierbar).
-- Dashboard (Streamlit, 8 Seiten) + Chat-Assistent (32 deterministische
-  Auswertungs-Routen, lokales KI-Modell).
+- Dashboard (Streamlit) — Navigation **nach Arbeitsabläufen gruppiert** (Start ·
+  Geld & Chancen · Service · Abrechnung & Verträge · Datenpflege · Nachschlagen) statt
+  nach Datenquelle — plus Chat-Assistent (32 deterministische Auswertungs-Routen,
+  lokales KI-Modell).
 - Quellen strikt read-only, DSGVO-konform (keine Kunden-Kontaktdaten/E-Mails;
   Techniker-Wissen aus Tickets bleibt erhalten, Kundennamen pseudonymisiert).
 
