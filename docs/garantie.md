@@ -359,12 +359,34 @@ leitet `vw_warranty_assessment` eine **`oem_konfidenz`** ab:
 - Die Headline (`vw_lagebericht`) zählt nur hoch+mittel; `garantie_claims_niedrig` ist
   separat ausgewiesen. So bleibt die Glaubwürdigkeit gewahrt (kein Over-Claim wie früher).
 
-**Scope & Grenze:** HP / Lexmark / Kyocera (über `vw_device_supplies` = ~85 % der
-Lücke). **Konica Minolta (3.014 Events) fehlt noch**: KM hat keine per-Modell-
-Kompatibilität (Excel-Pfad mit `model_family`-Codename wie „ZEUS") — der KM-Toner-Soll
-braucht eine eigene bizhub→KM-Modellfamilie-Brücke (offener Folgeschritt). Leere
+**Scope:** HP / Lexmark / Kyocera (über `vw_device_supplies` = ~85 % der Lücke). Leere
 `colorant`-Events werden nur bei **Mono**-Modellen als Schwarz gewertet (bei Farb-
 Modellen ist die leere Farbe der Gesamtzähler, NICHT die Schwarz-Patrone → nicht gemappt).
+
+### 10b. Konica-Minolta-Brücke über den Selbst-Soll (Migration 063)
+
+KM hat **keine** per-Modell-Kompatibilität im Crawler (Excel-Pfad), und die vorhandenen
+km_excel-Tonerzahlen waren teils synthetisch (alle `TN-514`; für C458 sogar falsch:
+56k statt real 28k). **Aber:** FleetMgmt meldet je Event selbst einen `oem_target_pages`
+— nur lückenhaft. Für dasselbe Modell × Farbe haben viele Events den Wert (z. B.
+bizhub C450i schwarz = **28.000** über 1.181 Events, 100 % konsistent), andere nicht.
+Dieser gemeldete Wert ist zudem **korrekt** (C458 = 28k deckt sich mit TN-514K real),
+schlägt also den Excel-Seed.
+
+→ Wir leiten den KM-Soll je Modell × Farbe aus KMs **eigenen** konsistent gemeldeten
+Werten ab (Median über die Geschwister-Events; min/max → Spread → Konfidenz wie in §10)
+und speisen ihn als Quelle `self_target` in `model_toner_oem`. Die §10-Fallback-Logik
+greift automatisch. Vorteile: keine Web-Recherche, kein synthetischer Seed, **voll
+rebuildbar** (`refresh_model_toner_oem()` baut Crawler- und Selbst-Soll neu auf);
+Crawler-Zeilen behalten Vorrang (`ON CONFLICT DO NOTHING`).
+
+**Befund:** Die „3.014 unbewerteten KM-Events" waren irreführend — **2.638 davon sind
+Leer-Farbe = Gesamtzähler (keine Patrone)** und gehören nicht in die Bewertung. Von den
+**376 echten Patronen-Events** sind jetzt **318 (85 %) bewertbar** (über 19 Modelle);
+die 58 Reste liegen auf 5 Modellen ganz ohne Referenz (AccurioPress-Produktionsdruck,
+C4051i) — vernachlässigbar. Effekt: +16 belastbare Garantie-Claims (hoch-Konfidenz,
+Spread 1,0x, Ø 18 % der Soll-Reichweite = echte Frühausfälle). Der Ansatz ist
+herstelleragnostisch und hilft jedem Modell mit gespeicherten, aber spärlichen Soll-Werten.
 
 **Aktualisierung:** `refresh_model_toner_oem()` in `insights/etl/load.py`, läuft
 automatisch bei `--vbm-crawler`, `--partlifetimes` und `--all` (nach jeder Änderung an
