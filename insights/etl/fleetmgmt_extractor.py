@@ -50,6 +50,7 @@ SELECT
     d.Created              AS created,
     d.Deactivated          AS deactivated,
     d.Deleted              AS deleted,
+    d.Unmanaged            AS unmanaged,
     d.LastDataTransferDate AS last_data_transfer_at
 FROM ACCDEVICES d
 LEFT JOIN ACCUSERS u           ON u.Id = d.SubmitterId

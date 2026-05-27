@@ -43,13 +43,13 @@ _UPSERT_FLEETMGMT = text(
         customer_name, customer_city, manufacturer_canonical, model_display,
         printer_ip, mac_address, hostname,
         deployed_date, last_data_transfer_at, device_status, telemetry_stale_days,
-        source_systems, updated_at
+        unmanaged, source_systems, updated_at
     ) VALUES (
         :serial, :device_id, :user_id, :internal_id,
         :customer_name, :customer_city, :vendor, :model_display,
         :printer_ip, :mac_address, :hostname,
         :deployed_date, :last_transfer, :status, :stale_days,
-        ARRAY['fleetmgmt']::varchar[], now()
+        :unmanaged, ARRAY['fleetmgmt']::varchar[], now()
     )
     ON CONFLICT (fleetmgmt_device_id) WHERE fleetmgmt_device_id IS NOT NULL
     DO UPDATE SET
@@ -67,6 +67,7 @@ _UPSERT_FLEETMGMT = text(
         last_data_transfer_at  = EXCLUDED.last_data_transfer_at,
         device_status          = EXCLUDED.device_status,
         telemetry_stale_days   = EXCLUDED.telemetry_stale_days,
+        unmanaged              = EXCLUDED.unmanaged,
         source_systems = (
             SELECT ARRAY(
                 SELECT DISTINCT e
@@ -150,6 +151,7 @@ def _to_param(rec: dict[str, Any]) -> dict[str, Any]:
         "last_transfer": rec.get("last_data_transfer_at"),
         "status": rec.get("device_status"),
         "stale_days": rec.get("telemetry_stale_days"),
+        "unmanaged": bool(rec.get("unmanaged")),
     }
 
 
