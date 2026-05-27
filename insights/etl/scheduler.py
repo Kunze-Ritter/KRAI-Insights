@@ -53,6 +53,9 @@ def daily_refresh() -> None:
     _run_step("vbm_lifecycle", load.load_vbm_lifecycle)
     _run_step("error_codes", load.load_error_codes)
     _run_step("part_lifetimes_oem", load.load_part_lifetimes)
+    # Modell-Toner-Soll NACH vbm_lifecycle + part_lifetimes neu materialisieren, sonst
+    # veraltet der OEM-Soll-Backfill (Garantie/Yield, Migration 062/063) nach jedem Nightly.
+    _run_step("model_toner_oem", load.refresh_model_toner_oem)
     logger.info("=== daily refresh DONE ===")
 
 
