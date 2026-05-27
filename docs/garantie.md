@@ -320,3 +320,53 @@ Box-Reichweite Y je Modell:
 (überwiegend KM bizhub); 3.315 Geräte mit kaputtem Sensor sind ehrlich als
 „unsicher" markiert (feste Kadenz nach Y). UI: Verbrauchsmaterial-Seite Tab
 „🗑️ Resttonerbehälter"; Agent-Route `resttoner_vorhersage`.
+
+## 10. OEM-Soll-Backfill — Garantie + Standzeit von 14 % auf 85 % der Events (Migration 062)
+
+**Problem (Audit 2026-05-27):** Die OEM-Soll-Reichweite je Tonerwechsel
+(`vbm_lifecycle_events.oem_target_pages`) war nur bei **14 %** der Ereignisse gesetzt
+(28.312 / 199.170) — sie stammte aus der alten, engen Radix-Artikel-Quelle. Dadurch
+„sah" sowohl die Garantie-Bewertung als auch die Standzeit-/Yield-Auswertung nur 14 %
+der Tonerwechsel. **20.840 Ereignisse mit echtem Seitenlauf** (HP 15.258 / KM 3.014 /
+Lexmark 2.358 / Kyocera 202) blieben unbewertet — obwohl die OEM-Reichweiten seit dem
+VBM-Crawler längst vorliegen (sie waren nur nie in die Garantie-Pipeline verdrahtet).
+
+**Lösung:** Eine materialisierte Tabelle `model_toner_oem` (Modell × Farbe → min /
+**median** / max OEM-Toner-Seiten), einmalig aus der schweren Per-Gerät-Matching-View
+`vw_device_supplies` aggregiert (NICHT pro Event joinen — Performance-Lektion aus
+Migration 056; die View braucht ~25 s). `vw_vbm_lifecycle` fällt per COALESCE auf
+diesen Modell-Soll zurück, wo der gespeicherte Radix-Wert fehlt (Radix behält Vorrang
+→ die bisherigen Bewertungen ändern sich nicht). Wirkung propagiert automatisch in
+Garantie **und** Yield (beide lesen `oem_target_pages` aus `vw_vbm_lifecycle`).
+
+**Formel-Entscheidung — warum Median + Konfidenz:** Ein Modell hat oft 5–10 Toner-SKUs
+(Starter / Standard / High / XL) mit **Ø 7,95× Spreizung** (z. B. Lexmark CX962se:
+15.000 / 47.700 / **225.000** Seiten). Ein einzelner Wert wäre unzuverlässig: MIN
+(Starter) würde echte Garantiefälle übersehen, MAX (XL) würde über-claimen. Wir nehmen
+den **Median** als Soll (robust; für die Yield-Statistik über viele Geräte mittelt sich
+das Rauschen weg) und führen die Spreizung als **`oem_target_spread`** mit. Daraus
+leitet `vw_warranty_assessment` eine **`oem_konfidenz`** ab:
+- **hoch** — Soll aus Radix belegt ODER Modell-Median mit enger Spreizung (≤ 2×, quasi Einzel-SKU)
+- **mittel** — Modell-Median, Spreizung ≤ 4×
+- **niedrig** — Modell-Median, Spreizung > 4× (unsichere Referenz → zeigen, nicht headlinen)
+
+**Wirkung:**
+- Bewertbare Tonerwechsel: **~19.600 → 34.998** (+15.400).
+- Garantie-Claims: **488 → 574 belastbar** (hoch+mittel; +84 neue mit Spread ~1,1× und
+  Ø 24,7 % der Soll-Reichweite = echte Frühausfälle) + **24 niedrig** (separat, manuell prüfen).
+- Yield-/Standzeit-Bild: **von „53" auf 1.603 Modell/Farbe-Kombinationen** — endlich
+  flotten-weit belastbar statt Stichprobe.
+- Die Headline (`vw_lagebericht`) zählt nur hoch+mittel; `garantie_claims_niedrig` ist
+  separat ausgewiesen. So bleibt die Glaubwürdigkeit gewahrt (kein Over-Claim wie früher).
+
+**Scope & Grenze:** HP / Lexmark / Kyocera (über `vw_device_supplies` = ~85 % der
+Lücke). **Konica Minolta (3.014 Events) fehlt noch**: KM hat keine per-Modell-
+Kompatibilität (Excel-Pfad mit `model_family`-Codename wie „ZEUS") — der KM-Toner-Soll
+braucht eine eigene bizhub→KM-Modellfamilie-Brücke (offener Folgeschritt). Leere
+`colorant`-Events werden nur bei **Mono**-Modellen als Schwarz gewertet (bei Farb-
+Modellen ist die leere Farbe der Gesamtzähler, NICHT die Schwarz-Patrone → nicht gemappt).
+
+**Aktualisierung:** `refresh_model_toner_oem()` in `insights/etl/load.py`, läuft
+automatisch bei `--vbm-crawler`, `--partlifetimes` und `--all` (nach jeder Änderung an
+`part_lifetime_oem` / `devices_unified`). UI: Verbrauchsmaterial → Garantie-Bewertung
+mit Konfidenz-Filter und Spalten „OEM-Konfidenz"/„Soll-Quelle".

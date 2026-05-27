@@ -77,6 +77,14 @@ st.caption(
     f"die Zähler belegt. Zusätzlich **{_de(int(k.get('verhandlung_kandidaten') or 0))}** Verhandlungs-"
     "Kandidaten (über 1 Jahr, aber unter Soll). Liste: Seite Verbrauchsmaterial → Garantie-Bewertung."
 )
+_niedrig = int(k.get("garantie_claims_niedrig") or 0)
+if _niedrig:
+    st.caption(
+        "Die Headline zählt nur Fälle mit **belastbarem** Hersteller-Soll (Konfidenz hoch/mittel). "
+        f"Weitere **{_de(_niedrig)}** mögliche Fälle haben eine unsichere OEM-Referenz (Modell mit vielen "
+        "Toner-Varianten / breiter Reichweiten-Spanne) — separat unter Verbrauchsmaterial → "
+        "Garantie-Bewertung (Konfidenz niedrig) zum manuellen Prüfen."
+    )
 st.markdown(f"**Wichtig:** Die Summe ist historisch (~9 Jahre); heute einreichbar ist nur das jüngste "
             f"Zeitfenster. Methodik, Restwert-Modell und Zeitfenster: [Doku Garantie]({doc('garantie.md')}).")
 

@@ -131,9 +131,20 @@ with tab_garantie:
         "Deshalb wird deckungskorrigiert gerechnet (Spalte % vom Soll Toner); die Spalte % vom Soll Seiten ist "
         "der unkorrigierte Rohwert. Deckung belegt = ja heißt: mit realer Deckung gerechnet (stärkster Nachweis)."
     )
+    st.caption(
+        "**OEM-Konfidenz**: hoch = Hersteller-Soll aus Radix belegt oder eindeutige Toner-SKU "
+        "(zuverlässig); mittel/niedrig = Soll aus dem Modell-Median, wo das Modell viele Toner-Varianten "
+        "(Starter/Standard/XL) mit großer Reichweiten-Spanne hat → Referenz unsicher. Headline-Zahlen "
+        "zählen nur hoch+mittel. (Migration 062: Soll für ~85 % der Tonerwechsel verfügbar statt 14 %.)"
+    )
     bewertung = st.multiselect(
         "Bewertung", options=["claim", "negotiation"], default=["claim", "negotiation"],
         format_func=lambda w: WARRANTY_LABEL.get(w, w),
+    )
+    konf = st.multiselect(
+        "OEM-Konfidenz", options=["hoch", "mittel", "niedrig"], default=["hoch", "mittel"],
+        format_func=lambda v: {"hoch": "Hoch (belastbar)", "mittel": "Mittel",
+                               "niedrig": "Niedrig (unsichere Referenz)"}.get(v, v),
     )
     nur_serial = st.checkbox("Nur serial-belegte (stärkster Nachweis)", value=False,
                              help="Konica Minolta/Kyocera melden keine Seriennummer — diese Fälle sind "
@@ -143,6 +154,9 @@ with tab_garantie:
     params: dict = {}
     if bewertung:
         params["cls"] = bewertung
+    if konf:
+        clauses.append("oem_konfidenz = ANY(:konf)")
+        params["konf"] = konf
     if nur_serial:
         clauses.append("cartridge_serial IS NOT NULL")
     if such.strip():
@@ -153,9 +167,10 @@ with tab_garantie:
         "CASE WHEN colorant IS NOT NULL AND colorant <> '' THEN 'Toner' ELSE 'Teil (kein Toner)' END AS art, "
         "lower(NULLIF(colorant, '')) AS colorant, marker_name, "
         "cartridge_serial, installed_on, removed_on, age_days, pages, rated, "
-        "pct_seiten_roh, coverage_real_pct, pct_of_oem, coverage_belegt, warranty_class "
+        "pct_seiten_roh, coverage_real_pct, pct_of_oem, coverage_belegt, warranty_class, "
+        "oem_konfidenz, oem_target_source "
         f"FROM insights.vw_warranty_assessment WHERE {' AND '.join(clauses)} "
-        "ORDER BY (cartridge_serial IS NOT NULL) DESC, pct_of_oem ASC LIMIT 500",
+        "ORDER BY (oem_konfidenz='hoch') DESC, (cartridge_serial IS NOT NULL) DESC, pct_of_oem ASC LIMIT 500",
         params,
     )
     if not df.empty:
@@ -170,7 +185,11 @@ with tab_garantie:
             "pct_seiten_roh": "% vom Soll (Seiten)", "coverage_real_pct": "reale Deckung %",
             "pct_of_oem": "% vom Soll (Toner, deckungskorr.)", "coverage_belegt": "Deckung belegt",
             "warranty_class": "Bewertung",
+            "oem_konfidenz": "OEM-Konfidenz",
+            "oem_target_source": "Soll-Quelle",
         })
+        df["Soll-Quelle"] = df["Soll-Quelle"].map(
+            {"fleetmgmt": "Radix", "modell_median": "Modell-Median"}).fillna(df["Soll-Quelle"])
     st.write(f"**{len(df):,}**".replace(",", ".") + " Eintrag/Einträge (max. 500)")
     st.dataframe(df, width="stretch", hide_index=True)
 

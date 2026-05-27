@@ -726,6 +726,48 @@ def load_vbm_crawler() -> tuple[int, int]:
     return total_lifetimes, total_compat
 
 
+def refresh_model_toner_oem() -> int:
+    """Baut den materialisierten Modell-Toner-Soll (model_toner_oem) neu auf.
+
+    Aggregiert die schwere Per-Geraet-Matching-View vw_device_supplies EINMALIG auf
+    Modell x Farbe (Median/Min/Max der OEM-Toner-Reichweite). vw_vbm_lifecycle faellt
+    darauf zurueck, wo der gespeicherte oem_target_pages fehlt -> Garantie + Yield
+    bewerten dann ~85 % statt 14 % der Tonerwechsel (HP/Lexmark/Kyocera). Muss nach
+    jeder Aenderung an part_lifetime_oem (VBM-Crawler/KM) bzw. devices_unified laufen.
+    Siehe Migration 062.
+    """
+    with insights_engine().begin() as conn:
+        conn.execute(text("TRUNCATE insights.model_toner_oem"))
+        n = conn.execute(
+            text(
+                """
+                INSERT INTO insights.model_toner_oem
+                    (model_display, color_channel, oem_min, oem_median, oem_max, sku_count, is_mono_model)
+                WITH t AS (
+                    SELECT model_display, color_channel, nominal_lifetime_pages
+                    FROM insights.vw_device_supplies
+                    WHERE part_category = 'toner' AND nominal_lifetime_pages > 0
+                      AND color_channel IN ('bw', 'c', 'm', 'y')
+                ),
+                mono AS (
+                    SELECT model_display, bool_and(color_channel = 'bw') AS is_mono
+                    FROM t GROUP BY model_display
+                )
+                SELECT t.model_display, t.color_channel,
+                       min(t.nominal_lifetime_pages)::int,
+                       round(percentile_cont(0.5) WITHIN GROUP (ORDER BY t.nominal_lifetime_pages))::int,
+                       max(t.nominal_lifetime_pages)::int,
+                       count(*)::int,
+                       bool_or(m.is_mono)
+                FROM t JOIN mono m USING (model_display)
+                GROUP BY t.model_display, t.color_channel
+                """
+            )
+        ).rowcount
+    logger.info("model_toner_oem neu aufgebaut: %d Modell/Farbe-Zeilen", n)
+    return n
+
+
 def load_error_codes(limit: int | None = None) -> int:
     """Materialise krai_intelligence error codes into insights.error_code_ref."""
     total = 0
@@ -1020,6 +1062,10 @@ if __name__ == "__main__":
         logger.info(
             "VBM crawler import: %d lifetimes, %d compatibility rows.", vl, vc
         )
+    # Modell-Toner-Soll nach jeder OEM-Datenaenderung neu materialisieren
+    if args.all or args.vbm_crawler or args.partlifetimes:
+        mt = refresh_model_toner_oem()
+        logger.info("model_toner_oem refreshed: %d rows.", mt)
     if args.all or args.contracts:
         ctr = enrich_contracts_from_radix()
         logger.info("Contracts loaded: %s", ctr)
