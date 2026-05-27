@@ -64,7 +64,11 @@ def kennzahlen() -> dict:
         kunde_abw = conn.execute(
             text("SELECT count(*) FROM insights.vw_customer_device_mismatch WHERE abgleich = 'abweichung'")
         ).scalar()
-    return {"risiko": risiko, "fake": fake, "woanders": woanders, "kunde_abw": kunde_abw}
+        lizenz_hoch = conn.execute(
+            text("SELECT count(*) FROM insights.vw_lizenz_verschwendung WHERE lizenz_risiko = 'hoch'")
+        ).scalar()
+    return {"risiko": risiko, "fake": fake, "woanders": woanders, "kunde_abw": kunde_abw,
+            "lizenz_hoch": lizenz_hoch}
 
 
 setup_page(
@@ -75,16 +79,57 @@ setup_page(
 st.caption(f"📖 Methodik & Begründung: [Doku Datenqualität & Abgleich]({doc('datenqualitaet.md')})")
 
 k = kennzahlen()
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Abrechnungs-Risiko (Geräte)", f"{k['risiko']:,}".replace(",", "."))
-c2.metric("Teilewechsel mit Fake-Verdacht", f"{k['fake']:,}".replace(",", "."))
-c3.metric("Toner woanders eingebaut", f"{k['woanders']:,}".replace(",", "."))
-c4.metric("Kunden-Abweichung (Geräte)", f"{k['kunde_abw']:,}".replace(",", "."))
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Lizenz-Verschwendung (hoch)", f"{k['lizenz_hoch']:,}".replace(",", "."),
+          help="Geräte, die noch CSP-lizenziert sind, aber nie/lange nicht gemeldet haben und "
+               "nicht in Radix sind — wahrscheinlich abgebaut. Kosten Lizenz ohne Nutzen.")
+c2.metric("Abrechnungs-Risiko (Geräte)", f"{k['risiko']:,}".replace(",", "."))
+c3.metric("Teilewechsel mit Fake-Verdacht", f"{k['fake']:,}".replace(",", "."))
+c4.metric("Toner woanders eingebaut", f"{k['woanders']:,}".replace(",", "."))
+c5.metric("Kunden-Abweichung (Geräte)", f"{k['kunde_abw']:,}".replace(",", "."))
 
 st.divider()
-tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
-    ["Abrechnungs-Risiko", "Flotten-Abgleich", "Teilewechsel-Validierung", "Material-Einbau", "Kunden-Abgleich"]
+tab_lizenz, tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
+    ["💸 Lizenz-Verschwendung", "Abrechnungs-Risiko", "Flotten-Abgleich",
+     "Teilewechsel-Validierung", "Material-Einbau", "Kunden-Abgleich"]
 )
+
+with tab_lizenz:
+    st.markdown("**Geräte, die noch CSP-lizenziert sind, aber nicht mehr aktiv sind** — "
+                "Delisting-Kandidaten, die unnötig Lizenzgebühren kosten.")
+    st.caption("CSP nimmt Geräte automatisch unter Lizenz, auch abgebaute/ersetzte. „lizenziert\" = in "
+               "FleetMgmt gezählt (nicht gelöscht/deaktiviert), aber nicht mehr live. Stufe **hoch** = nie "
+               "gemeldet oder >1 Jahr still UND nicht in Radix bzw. ohne Modell (fast sicher weg). "
+               "Vor dem Delisting in CSP je Zeile den Grund prüfen. Einsparung = Anzahl x Lizenzgebühr/Gerät.")
+    risiko_f = st.radio("Stufe", options=["hoch", "mittel", "niedrig"], index=0, horizontal=True,
+                        format_func=lambda v: {"hoch": "Hoch (fast sicher weg)", "mittel": "Mittel (>180 Tage)",
+                                               "niedrig": "Niedrig (60-180 Tage)"}.get(v, v))
+    such_l = st.text_input("Filter — Kunde oder Seriennummer (optional)", "", key="lizenz_q")
+    clauses_l = ["lizenz_risiko = :r"]
+    params_l: dict = {"r": risiko_f}
+    if such_l.strip():
+        clauses_l.append("(customer_name ILIKE :q OR device_serial ILIKE :q)")
+        params_l["q"] = f"%{such_l.strip()}%"
+    df = frame(
+        "SELECT customer_name, customer_city, manufacturer_canonical, model_display, device_serial, "
+        "radix_device_number, device_status, letzte_meldung, tage_inaktiv, in_radix, aktiver_vertrag, grund "
+        f"FROM insights.vw_lizenz_verschwendung WHERE {' AND '.join(clauses_l)} "
+        "ORDER BY tage_inaktiv DESC NULLS FIRST LIMIT 500",
+        params_l,
+    )
+    if not df.empty:
+        df["in_radix"] = df["in_radix"].map({True: "ja", False: "nein"})
+        df["aktiver_vertrag"] = df["aktiver_vertrag"].map({True: "ja", False: "nein"})
+        df["device_status"] = df["device_status"].map(
+            {"silent": "Still", "never_reported": "Nie gemeldet"}).fillna(df["device_status"])
+        df = df.rename(columns={
+            "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
+            "model_display": "Modell", "device_serial": "Geräte-Seriennummer", "radix_device_number": "Radix-ID",
+            "device_status": "Status", "letzte_meldung": "Letzte Meldung", "tage_inaktiv": "Tage inaktiv",
+            "in_radix": "In Radix", "aktiver_vertrag": "Aktiver Vertrag", "grund": "Grund",
+        })
+    st.write(f"**{len(df):,}**".replace(",", ".") + " Delisting-Kandidat(en) (max. 500)")
+    st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_risk:
     st.markdown("**Geräte unter Vertrag, die keine Daten mehr melden** — die Abrechnung läuft auf Schätz-Zählern.")
