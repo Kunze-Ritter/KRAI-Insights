@@ -106,7 +106,8 @@ with tab_spy:
     st.caption("Bleibt der DCA nach Vertragsende auf dem Kundenserver, melden sich dort weiter alle Geräte "
                "automatisch — auch neue Konkurrenzgeräte, die der Kunde aufstellt. Signal: live (meldet jetzt) "
                "+ nicht in Radix (kein KR-Service). „Konkurrenzmarke\" = Marke ist nicht KM/Lexmark/HP/Kyocera. "
-               "„Verlorener Kunde\" = beim Kunden keine KR-Geräte mehr → Win-Back oder Agent deinstallieren.")
+               "„Verlorener Kunde\" = beim Kunden keine KR-Geräte mehr → Win-Back oder Agent deinstallieren. "
+               "Identitätslose Print-Server-Warteschlangen (IP „PS…\", ohne Modell/Serial) sind ausgefiltert.")
     cc1, cc2 = st.columns(2)
     nur_konk = cc1.checkbox("Nur Konkurrenz-Marken", value=True)
     nur_neu = cc2.checkbox("Nur neu aufgetaucht (< 1 Jahr)", value=False)
