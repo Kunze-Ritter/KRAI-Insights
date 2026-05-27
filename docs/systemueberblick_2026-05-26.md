@@ -134,8 +134,12 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
 
 ### 🟠 P2 — Datenqualität / Abdeckung
 3. **498 Geräte „still unter Vertrag"** → Abrechnung auf Schätzzählern.
-4. **99 Live-Geräte ohne Hersteller/Modell** und **174 ohne Radix-Zuordnung** —
-   fallen aus allen Auswertungen heraus (Marke aus Modellname/Radix nachziehen).
+4. ~~**99 Live-Geräte ohne Hersteller/Modell**~~ ✅ **GEKLÄRT** (Migration 061): Das
+   waren überwiegend **Print-Server-Queue-Artefakte** — Druck-Warteschlangen eines
+   zentralen Print-Servers, die der Agent als identitätslose „Geräte" mitzählt (Queue-
+   Name im IP-Feld). Flotten-weit 414 markiert (`is_queue_artifact`) und aus Live-/
+   Lizenz-Zahlen herausgerechnet; je Kunde sichtbar in `vw_print_server_kunden`. Es
+   bleiben **174 echte Geräte ohne Radix-Zuordnung** (Marke aus Modellname/Radix nachziehen).
 5. ~~Zwei getrennte Abdeckungs-Pfade nicht vereint (KM erschien fälschlich 0 %).~~
    ✅ **BEHOBEN** (Migration 056): vereinheitlichte Abdeckungs-Sicht über beide
    Pfade + Dashboard-Kennzahl „OEM-Abdeckung 97 %".
@@ -159,11 +163,11 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
 
 ## 7. Technischer Stand
 
-- **56 Datenbank-Migrationen** angewendet (versioniert, idempotent, zurückbaubar).
+- **61 Datenbank-Migrationen** angewendet (versioniert, idempotent, zurückbaubar).
 - **26 automatisierte Tests grün**, Code-Linting sauber.
 - Hersteller-Crawler in eigenem Repo (Daten in versionierten Seeds — gehen nie
   verloren, per `npm run refresh` aktualisierbar).
-- Dashboard (Streamlit, 8 Seiten) + Chat-Assistent (~28 deterministische
+- Dashboard (Streamlit, 8 Seiten) + Chat-Assistent (32 deterministische
   Auswertungs-Routen, lokales KI-Modell).
 - Quellen strikt read-only, DSGVO-konform (keine Kunden-Kontaktdaten/E-Mails;
   Techniker-Wissen aus Tickets bleibt erhalten, Kundennamen pseudonymisiert).

@@ -95,9 +95,9 @@ c5.metric("Toner woanders eingebaut", f"{k['woanders']:,}".replace(",", "."))
 c6.metric("Kunden-Abweichung (Geräte)", f"{k['kunde_abw']:,}".replace(",", "."))
 
 st.divider()
-tab_lizenz, tab_spy, tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
-    ["💸 Lizenz-Verschwendung", "🕵️ Spionage / Fremdgeräte", "Abrechnungs-Risiko", "Flotten-Abgleich",
-     "Teilewechsel-Validierung", "Material-Einbau", "Kunden-Abgleich"]
+tab_lizenz, tab_spy, tab_ps, tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
+    ["💸 Lizenz-Verschwendung", "🕵️ Spionage / Fremdgeräte", "🖨️ Print-Server / Queues",
+     "Abrechnungs-Risiko", "Flotten-Abgleich", "Teilewechsel-Validierung", "Material-Einbau", "Kunden-Abgleich"]
 )
 
 with tab_spy:
@@ -180,6 +180,34 @@ with tab_lizenz:
             "in_radix": "In Radix", "aktiver_vertrag": "Aktiver Vertrag", "grund": "Grund",
         })
     st.write(f"**{len(df):,}**".replace(",", ".") + " Delisting-Kandidat(en) (max. 500)")
+    st.dataframe(df, width="stretch", hide_index=True)
+
+with tab_ps:
+    st.markdown("**Kunden, die über einen zentralen Windows-Print-Server überwacht werden** — dort zählt der "
+                "Agent (DCA) die Druck-Warteschlangen als identitätslose „Phantom-Geräte\" mit.")
+    st.caption("Wird nicht jedes Gerät direkt, sondern ein zentraler Print-Server überwacht, liest der Agent "
+               "dessen Druck-Queues mit. Queues ohne SNMP-Antwort landen als „Gerät\" mit dem Queue-Namen im "
+               "IP-Feld (kein Serial/Modell/Hersteller/MAC) = Spooler-Artefakte. Diese sind seit Migration 061 "
+               "als `is_queue_artifact` markiert und aus den Live- und Lizenz-Zahlen herausgerechnet (414 "
+               "flotten-weit). „Echte Live-Geräte\" = real überwachte Geräte des Kunden. "
+               "Nutzen: Service/Cleanup (Agent bei Vertragsende deinstallieren) und Erklärung, woher "
+               "Phantom-Geräte stammen.")
+    df = frame(
+        "SELECT customer_name, customer_city, queue_artefakte, echte_live_geraete, namensschema, beispiel_queue "
+        "FROM insights.vw_print_server_kunden ORDER BY queue_artefakte DESC"
+    )
+    if not df.empty:
+        render_chart(bar(
+            df, x="queue_artefakte", y="customer_name", top=15,
+            labels={"queue_artefakte": "Queue-Artefakte (Phantome)", "customer_name": "Kunde"},
+            title="Print-Server-Queue-Artefakte je Kunde",
+        ))
+        df = df.rename(columns={
+            "customer_name": "Kunde", "customer_city": "Ort", "queue_artefakte": "Queue-Artefakte",
+            "echte_live_geraete": "Echte Live-Geräte", "namensschema": "Namensschema",
+            "beispiel_queue": "Beispiel-Queue",
+        })
+    st.write(f"**{len(df):,}**".replace(",", ".") + " Kunde(n) mit Print-Server-Überwachung")
     st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_risk:

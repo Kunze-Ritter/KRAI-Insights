@@ -113,3 +113,42 @@ Link). Flags:
 22 neu** — z. B. Brother MFC @ Wobak Konstanz, Sharp BP-70C31 @ Weingut Schloss
 Ortenberg, Canon TX-3200 @ Stadt Konstanz (mit Aufstell-Datum). UI: Datenqualität-Tab
 „🕵️ Spionage / Fremdgeräte"; Agent-Route `fremdgeraete`.
+
+## Print-Server-/Queue-Artefakte (vw_print_server_kunden, Migration 060/061)
+
+**Befund (user-Frage „was sind die Geräte ohne Serial bei Bruderhaus?"):** Manche
+Kunden werden NICHT geräteweise, sondern über einen **zentralen Windows-Print-Server**
+überwacht. Der DCA liest dort die Druck-Warteschlangen mit; Queues ohne SNMP-Antwort
+landen als „Geräte" mit dem **Queue-Namen im IP-Feld** (kein Serial, kein Modell, kein
+Hersteller, kein MAC) = Spooler-Artefakte, keine physischen Kopierer.
+
+Jeder Kunde hat ein eigenes Namensschema (der String selbst ist also kein
+verlässlicher Erkenner):
+
+| Kunde | Schema | Queue-Artefakte |
+|---|---|---|
+| Stadt Freiburg | `konicasq…` (Konica Secure Queue), `DN-…` | 104 |
+| IMS Gear | `mfde…`, `konica…` | 218 |
+| BruderhausDiakonie | `PS30…` (Print Server) | 82 |
+| Allweiler / Landratsämter / Rolls-Royce | `PDERAD…`, `kop…`, `DEFDHPR…`, `MFP…` | je 1–4 |
+
+**Robuster Erkenner (Migration 061, generierte Spalte `is_queue_artifact`):**
+`printer_ip` ist gesetzt, aber **keine gültige IPv4** (= ein Hostname/Queue-Name)
+**UND** keine Hersteller-Seriennummer (= keine echte Geräte-Identität). Geräte, die nur
+zufällig einen Hostnamen im IP-Feld haben, aber ein Serial tragen (63 Stück), bleiben
+echte Geräte und werden NICHT geflaggt.
+
+**Wirkung:** flotten-weit **414 Queue-Artefakte** (96 live, 318 still). Sie werden aus
+der **Live-Zahl** (`vw_lagebericht.geraete_live`, ~6.396→6.300) und der
+**Lizenz-Verschwendung** herausgerechnet (die 318 stillen Phantome wurden vorher
+fälschlich als „hoch"-Delisting-Kandidaten gezählt). `vw_fremdgeraete` filtert sie
+schon seit Migration 060 über die fehlende Geräte-Identität.
+
+`vw_print_server_kunden` listet je Kunde `queue_artefakte`, `echte_live_geraete`
+(real überwachte Geräte), `namensschema` und ein `beispiel_queue`. **Wichtig:**
+Diese Print-Server-Kunden sind KEINE Blindstelle — z. B. Bruderhaus hat neben den 82
+Phantomen 577 echte, gut überwachte Live-Geräte (634 in Radix). Die Queues selbst
+tragen keine Zähler/Toner-Daten und keine Service-Alarme (nur „Monitoring aktiviert/
+entfernt") → für Service nichts zu holen. **Nutzen:** Cleanup (Agent bei Vertragsende
+deinstallieren) + Erklärung, woher Phantom-Geräte stammen. UI: Datenqualität-Tab
+„🖨️ Print-Server / Queues"; Agent-Route `print_server_kunden`.

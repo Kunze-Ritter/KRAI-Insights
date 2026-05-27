@@ -262,6 +262,31 @@ def r_foreign_devices(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_fremdgeraete", sql))
 
 
+def r_print_server(args: dict[str, Any]) -> AnswerCard:
+    kunde = (args.get("kunde") or "").strip()
+    where = ""
+    params: dict[str, Any] = {}
+    if kunde:
+        where = " WHERE customer_name ILIKE :cl"
+        params["cl"] = f"%{kunde}%"
+    sql = (
+        "SELECT customer_name AS kunde, customer_city AS ort, queue_artefakte, "
+        "echte_live_geraete, namensschema, beispiel_queue "
+        f"FROM insights.vw_print_server_kunden{where} ORDER BY queue_artefakte DESC LIMIT 100"
+    )
+    df = _df(sql, params)
+    gesamt = int(df["queue_artefakte"].sum()) if not df.empty else 0
+    txt = (
+        f"{len(df)} Kunde(n) mit zentralem Print-Server ({gesamt} Queue-Artefakte gesamt): Dort überwacht "
+        "der Agent (DCA) den Windows-Print-Server, dessen Druck-Queues als identitätslose „Geräte\" "
+        "mitgezählt werden (Queue-Name im IP-Feld statt einer IP, kein Serial/Modell/Hersteller) = Phantome. "
+        "'queue_artefakte' = solche Spooler-Einträge (bereits aus Live- und Lizenz-Zahlen herausgerechnet), "
+        "'echte_live_geraete' = real überwachte Geräte des Kunden. Nützlich für Service/Cleanup "
+        "(Agent bei Vertragsende deinstallieren) und um zu erklären, woher Phantom-Geräte kommen."
+    )
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_print_server_kunden", sql))
+
+
 # --- Routes -----------------------------------------------------------------
 def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     q = (args.get("suche") or "").strip()
@@ -309,7 +334,7 @@ def r_fleet_count(args: dict[str, Any]) -> AnswerCard:
     where = f"WHERE {col} ILIKE :f " if filt else ""
     sql = (
         f"SELECT {col} AS gruppe, count(*) AS geraete, "
-        "count(*) FILTER (WHERE device_status = 'live') AS davon_live "
+        "count(*) FILTER (WHERE device_status = 'live' AND NOT COALESCE(is_queue_artifact, false)) AS davon_live "
         f"FROM insights.devices_unified {where}"
         f"GROUP BY {col} ORDER BY geraete DESC NULLS LAST LIMIT 200"
     )
@@ -757,6 +782,13 @@ REGISTRY: list[Route] = [
           {"nur_konkurrenz": {"type": "boolean", "description": "nur Fremdmarken (nicht KM/Lexmark/HP/Kyocera)"},
            "kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
           r_foreign_devices),
+    Route("print_server_kunden",
+          "Kunden, die über einen zentralen Windows-Print-Server überwacht werden — dort zählt der Agent "
+          "die Druck-Queues als identitätslose Phantom-Geräte mit (Queue-Name im IP-Feld, kein Serial/Modell). "
+          "Für Fragen wie 'welche Kunden haben einen Print-Server', 'woher kommen die Phantom-Geräte', "
+          "'Queue-Artefakte', 'PS30xxx-Geräte bei Bruderhaus', 'wo läuft der Agent auf einem Print-Server'.",
+          {"kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
+          r_print_server),
     Route("deckung_kunden",
           "Kunden mit realer Druck-Deckung über einer Schwelle (Standard 6 % = Klickpreis-Annahme) — "
           "Kandidaten für Klickpreis-Nachberechnung, weil sie mehr Toner verbrauchen als berechnet.",
