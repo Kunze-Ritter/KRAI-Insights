@@ -93,6 +93,13 @@ Aus demselben Befund: Kunden werfen **halbvolle Kartuschen weg**.
   auf Schätz-Zählern (Risiko in beide Richtungen).
 - 11.244 Verträge erfasst; ~488.500 € Material aus 88.000 Kosten-Positionen.
 
+### d) Lizenz-Verschwendung (CSP) — *neuer Kostenhebel*
+CSP nimmt Geräte automatisch unter Lizenz, auch abgebaute/ersetzte → laufende
+Gebühr ohne Gegenwert. **5.412 lizenzierte, aber inaktive Geräte** (von 11.815) —
+davon **2.515 „hoch"** (nie gemeldet / > 1 Jahr still und nicht in Radix / Phantom)
+= fast sichere Delisting-Kandidaten. **Direkte Ersparnis = Anzahl × Lizenzgebühr/Gerät.**
+Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
+
 ---
 
 ## 5. Service & vorausschauende Wartung
