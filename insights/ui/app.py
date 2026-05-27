@@ -19,6 +19,11 @@ import streamlit as st  # noqa: E402
 
 st.set_page_config(page_title="KRAI Insights", page_icon="📊", layout="wide")
 
+# Passwort-Gate (no-op, wenn DASHBOARD_PASSWORD leer ist — offenes Dev-Setup).
+from insights.ui.auth import require_password  # noqa: E402
+
+require_password()
+
 # Navigation nach ARBEITSABLAEUFEN/JOBS gruppiert (nicht nach Datenquelle): so liegt
 # zusammen, was ein Nutzer fuer EINE Aufgabe braucht. Die Seiten selbst sind unveraendert,
 # nur sinnvoll unter Job-Sektionen einsortiert.

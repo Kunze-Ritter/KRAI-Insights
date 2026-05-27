@@ -173,8 +173,10 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
     Modellen (AccurioPress-Produktionsdruck, C4051i) — vernachlässigbar.
 
 ### 🔒 Sicherheit (vor breitem Rollout)
-10. **Dashboard ohne Anmeldung** (nur im Docker-/Dev-Netz). Vor dem Ausrollen an
-    Mitarbeiter absichern (Authentifizierung).
+10. **Dashboard-Anmeldung**: Ein einfaches **Passwort-Gate** ist eingebaut (gemeinsames
+    Passwort via `DASHBOARD_PASSWORD` in `.env`; leer = offen fürs Dev-Netz). Vor dem
+    Mitarbeiter-Rollout Passwort setzen. **Ziel langfristig: Microsoft-SSO (Entra ID)**
+    statt geteiltem Passwort (Einzel-Anmeldung pro Mitarbeiter).
 
 ---
 
