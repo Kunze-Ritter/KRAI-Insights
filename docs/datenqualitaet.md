@@ -92,3 +92,24 @@ Einsparung = Anzahl × Lizenzgebühr je Gerät. UI: Datenqualität-Tab
 
 > Abgrenzung: Ein Gerät, das **live** meldet, ist KEINE Lizenz-Verschwendung (es ist
 > in Benutzung) — auch ohne Vertrag (das ist Up-Sell, siehe `vw_out_of_contract`).
+
+## Spionage / Wettbewerbs-Radar (vw_fremdgeraete, Migration 059)
+
+**Idee (user):** Wird der DCA/CSP-Agent nach Vertragsende auf dem Kundenserver nicht
+deinstalliert, melden sich dort weiter ALLE Geräte automatisch in die Flotten-
+Verwaltung — auch die NEUEN (Konkurrenz-)Geräte, die der Kunde aufstellt. Wir sehen
+sie, obwohl wir sie nicht servicieren = Wettbewerbs-Intelligenz.
+
+`vw_fremdgeraete`: **live** (meldet aktuell) UND **nicht in Radix** (kein KR-Service-
+Link). Flags:
+- `konkurrenzmarke` — Marke ist nicht KR-Kern (KM/Lexmark/HP/Kyocera) → Canon/Brother/
+  Sharp/Epson/… = starker Konkurrenz-Verdacht.
+- `neu_aufgetaucht` — deployed in den letzten 365 Tagen (frisch dazugestellt).
+- `einordnung` — `verlorener_kunde_agent_aktiv` (keine KR-Geräte mehr beim Kunden →
+  Win-Back oder Agent deinstallieren) vs. `fremdgeraet_bei_aktivem_kunden`.
+- `unmanaged`-Geräte sind ausgeschlossen.
+
+**Stand 2026-05-27:** 173 Fremdgeräte (live, nicht Radix), davon **23 Konkurrenzmarke,
+22 neu** — z. B. Brother MFC @ Wobak Konstanz, Sharp BP-70C31 @ Weingut Schloss
+Ortenberg, Canon TX-3200 @ Stadt Konstanz (mit Aufstell-Datum). UI: Datenqualität-Tab
+„🕵️ Spionage / Fremdgeräte"; Agent-Route `fremdgeraete`.

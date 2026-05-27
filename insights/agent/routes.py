@@ -234,6 +234,34 @@ def r_license_waste(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_lizenz_verschwendung", sql))
 
 
+def r_foreign_devices(args: dict[str, Any]) -> AnswerCard:
+    nur_konk = bool(args.get("nur_konkurrenz"))
+    kunde = (args.get("kunde") or "").strip()
+    where = []
+    params: dict[str, Any] = {}
+    if nur_konk:
+        where.append("konkurrenzmarke")
+    if kunde:
+        where.append("customer_name ILIKE :cl")
+        params["cl"] = f"%{kunde}%"
+    wsql = (" WHERE " + " AND ".join(where)) if where else ""
+    sql = (
+        "SELECT customer_name AS kunde, customer_city AS ort, manufacturer_canonical AS hersteller, "
+        "model_display AS modell, deployed_date AS aufgetaucht, letzte_meldung, neu_aufgetaucht, "
+        "konkurrenzmarke, kr_geraete_beim_kunden, einordnung "
+        f"FROM insights.vw_fremdgeraete{wsql} ORDER BY deployed_date DESC NULLS LAST LIMIT 100"
+    )
+    df = _df(sql, params)
+    txt = (
+        f"{len(df)} Fremdgeräte: Geräte, die aktuell über unseren Flotten-Agent (DCA) melden, aber NICHT "
+        "in Radix/unserem Service sind — sichtbar, weil der Agent beim Kunden noch läuft. Neu aufgetauchte "
+        "Konkurrenz-Marken (Canon/Brother/Sharp/…) = Hinweis, dass der Kunde fremd beschafft hat "
+        "(Wettbewerbs-Intel / Win-Back). 'verlorener_kunde_agent_aktiv' = keine KR-Geräte mehr beim Kunden, "
+        "Agent läuft noch → Win-Back oder Agent deinstallieren."
+    )
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_fremdgeraete", sql))
+
+
 # --- Routes -----------------------------------------------------------------
 def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     q = (args.get("suche") or "").strip()
@@ -721,6 +749,14 @@ REGISTRY: list[Route] = [
                       "description": "hoch = fast sicher weg (Standard), mittel = >180 Tage, niedrig = 60-180 Tage"},
            "kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
           r_license_waste),
+    Route("fremdgeraete",
+          "Wettbewerbs-Radar / „Spionage\": Geräte, die über unseren Flotten-Agent (DCA) melden, aber "
+          "nicht in Radix/unserem Service sind — z. B. neue Konkurrenzgeräte (Canon/Brother/Sharp), die "
+          "der Kunde aufstellt und die der noch laufende Agent sieht. Für Fragen wie 'welche Fremdgeräte "
+          "sehen wir', 'Konkurrenzgeräte beim Kunden', 'wer hat fremd beschafft', 'neue Geräte nicht von uns'.",
+          {"nur_konkurrenz": {"type": "boolean", "description": "nur Fremdmarken (nicht KM/Lexmark/HP/Kyocera)"},
+           "kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
+          r_foreign_devices),
     Route("deckung_kunden",
           "Kunden mit realer Druck-Deckung über einer Schwelle (Standard 6 % = Klickpreis-Annahme) — "
           "Kandidaten für Klickpreis-Nachberechnung, weil sie mehr Toner verbrauchen als berechnet.",

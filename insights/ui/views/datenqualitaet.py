@@ -67,8 +67,11 @@ def kennzahlen() -> dict:
         lizenz_hoch = conn.execute(
             text("SELECT count(*) FROM insights.vw_lizenz_verschwendung WHERE lizenz_risiko = 'hoch'")
         ).scalar()
+        konkurrenz_neu = conn.execute(
+            text("SELECT count(*) FROM insights.vw_fremdgeraete WHERE konkurrenzmarke AND neu_aufgetaucht")
+        ).scalar()
     return {"risiko": risiko, "fake": fake, "woanders": woanders, "kunde_abw": kunde_abw,
-            "lizenz_hoch": lizenz_hoch}
+            "lizenz_hoch": lizenz_hoch, "konkurrenz_neu": konkurrenz_neu}
 
 
 setup_page(
@@ -79,20 +82,67 @@ setup_page(
 st.caption(f"📖 Methodik & Begründung: [Doku Datenqualität & Abgleich]({doc('datenqualitaet.md')})")
 
 k = kennzahlen()
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 c1.metric("Lizenz-Verschwendung (hoch)", f"{k['lizenz_hoch']:,}".replace(",", "."),
           help="Geräte, die noch CSP-lizenziert sind, aber nie/lange nicht gemeldet haben und "
                "nicht in Radix sind — wahrscheinlich abgebaut. Kosten Lizenz ohne Nutzen.")
-c2.metric("Abrechnungs-Risiko (Geräte)", f"{k['risiko']:,}".replace(",", "."))
-c3.metric("Teilewechsel mit Fake-Verdacht", f"{k['fake']:,}".replace(",", "."))
-c4.metric("Toner woanders eingebaut", f"{k['woanders']:,}".replace(",", "."))
-c5.metric("Kunden-Abweichung (Geräte)", f"{k['kunde_abw']:,}".replace(",", "."))
+c2.metric("Konkurrenzgeräte (neu)", f"{k['konkurrenz_neu']:,}".replace(",", "."),
+          help="Neue Fremdmarken-Geräte, die über unseren Agent melden, aber nicht von uns sind — "
+               "der Kunde hat fremd beschafft (Wettbewerbs-Intel).")
+c3.metric("Abrechnungs-Risiko (Geräte)", f"{k['risiko']:,}".replace(",", "."))
+c4.metric("Teilewechsel mit Fake-Verdacht", f"{k['fake']:,}".replace(",", "."))
+c5.metric("Toner woanders eingebaut", f"{k['woanders']:,}".replace(",", "."))
+c6.metric("Kunden-Abweichung (Geräte)", f"{k['kunde_abw']:,}".replace(",", "."))
 
 st.divider()
-tab_lizenz, tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
-    ["💸 Lizenz-Verschwendung", "Abrechnungs-Risiko", "Flotten-Abgleich",
+tab_lizenz, tab_spy, tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
+    ["💸 Lizenz-Verschwendung", "🕵️ Spionage / Fremdgeräte", "Abrechnungs-Risiko", "Flotten-Abgleich",
      "Teilewechsel-Validierung", "Material-Einbau", "Kunden-Abgleich"]
 )
+
+with tab_spy:
+    st.markdown("**Geräte, die über unseren Flotten-Agent (DCA) melden, aber nicht von uns serviciert sind** — "
+                "sichtbar, weil der Agent beim Kunden noch läuft.")
+    st.caption("Bleibt der DCA nach Vertragsende auf dem Kundenserver, melden sich dort weiter alle Geräte "
+               "automatisch — auch neue Konkurrenzgeräte, die der Kunde aufstellt. Signal: live (meldet jetzt) "
+               "+ nicht in Radix (kein KR-Service). „Konkurrenzmarke\" = Marke ist nicht KM/Lexmark/HP/Kyocera. "
+               "„Verlorener Kunde\" = beim Kunden keine KR-Geräte mehr → Win-Back oder Agent deinstallieren.")
+    cc1, cc2 = st.columns(2)
+    nur_konk = cc1.checkbox("Nur Konkurrenz-Marken", value=True)
+    nur_neu = cc2.checkbox("Nur neu aufgetaucht (< 1 Jahr)", value=False)
+    such_s = st.text_input("Filter — Kunde (optional)", "", key="spy_q")
+    clauses_s = ["TRUE"]
+    params_s: dict = {}
+    if nur_konk:
+        clauses_s.append("konkurrenzmarke")
+    if nur_neu:
+        clauses_s.append("neu_aufgetaucht")
+    if such_s.strip():
+        clauses_s.append("customer_name ILIKE :q")
+        params_s["q"] = f"%{such_s.strip()}%"
+    df = frame(
+        "SELECT customer_name, customer_city, manufacturer_canonical, model_display, device_serial, "
+        "hostname, deployed_date, letzte_meldung, neu_aufgetaucht, konkurrenzmarke, "
+        "kr_geraete_beim_kunden, einordnung "
+        f"FROM insights.vw_fremdgeraete WHERE {' AND '.join(clauses_s)} "
+        "ORDER BY konkurrenzmarke DESC, deployed_date DESC NULLS LAST LIMIT 500",
+        params_s,
+    )
+    if not df.empty:
+        for col in ("neu_aufgetaucht", "konkurrenzmarke"):
+            df[col] = df[col].map({True: "ja", False: "nein"})
+        df["einordnung"] = df["einordnung"].map({
+            "verlorener_kunde_agent_aktiv": "Verlorener Kunde (Agent aktiv)",
+            "fremdgeraet_bei_aktivem_kunden": "Fremdgerät bei aktivem Kunden"}).fillna(df["einordnung"])
+        df = df.rename(columns={
+            "customer_name": "Kunde", "customer_city": "Ort", "manufacturer_canonical": "Hersteller",
+            "model_display": "Modell", "device_serial": "Geräte-Seriennummer", "hostname": "Hostname",
+            "deployed_date": "Aufgetaucht", "letzte_meldung": "Letzte Meldung",
+            "neu_aufgetaucht": "Neu (<1J)", "konkurrenzmarke": "Konkurrenzmarke",
+            "kr_geraete_beim_kunden": "KR-Geräte beim Kunden", "einordnung": "Einordnung",
+        })
+    st.write(f"**{len(df):,}**".replace(",", ".") + " Fremdgerät(e) (max. 500)")
+    st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_lizenz:
     st.markdown("**Geräte, die noch CSP-lizenziert sind, aber nicht mehr aktiv sind** — "
