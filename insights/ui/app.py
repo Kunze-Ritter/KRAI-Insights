@@ -19,15 +19,31 @@ import streamlit as st  # noqa: E402
 
 st.set_page_config(page_title="KRAI Insights", page_icon="📊", layout="wide")
 
-pages = [
-    st.Page("views/home.py", title="Übersicht", icon="🏠", default=True),
-    st.Page("views/geraeteinventar.py", title="Geräte-Inventar", icon="🖨️"),
-    st.Page("views/verbrauchsmaterial.py", title="Verbrauchsmaterial", icon="🧪"),
-    st.Page("views/ersatzteile.py", title="Ersatzteile & Standzeit", icon="🔧"),
-    st.Page("views/deckung.py", title="Deckung & Kalkulation", icon="📈"),
-    st.Page("views/kosten.py", title="Kosten & Verträge", icon="💶"),
-    st.Page("views/servicequalitaet.py", title="Service-Qualität", icon="🚨"),
-    st.Page("views/datenqualitaet.py", title="Datenqualität & Abgleich", icon="🔍"),
-    st.Page("views/fragen.py", title="Fragen", icon="💬"),
-]
+# Navigation nach ARBEITSABLAEUFEN/JOBS gruppiert (nicht nach Datenquelle): so liegt
+# zusammen, was ein Nutzer fuer EINE Aufgabe braucht. Die Seiten selbst sind unveraendert,
+# nur sinnvoll unter Job-Sektionen einsortiert.
+pages = {
+    "Start": [
+        st.Page("views/home.py", title="Übersicht", icon="🏠", default=True),
+        st.Page("views/fragen.py", title="Assistent (Fragen)", icon="💬"),
+    ],
+    "💰 Geld & Chancen": [
+        st.Page("views/chancen.py", title="Lizenz & Wettbewerb", icon="💸"),
+        st.Page("views/verbrauchsmaterial.py", title="Garantie & Verbrauchsmaterial", icon="🧪"),
+        st.Page("views/ersatzteile.py", title="Ersatzteile & Standzeit", icon="🔧"),
+    ],
+    "🛠️ Service planen": [
+        st.Page("views/servicequalitaet.py", title="Service-Qualität", icon="🚨"),
+    ],
+    "💶 Abrechnung & Verträge": [
+        st.Page("views/kosten.py", title="Kosten & Verträge", icon="💶"),
+        st.Page("views/deckung.py", title="Deckung & Kalkulation", icon="📈"),
+    ],
+    "🔍 Datenpflege": [
+        st.Page("views/datenqualitaet.py", title="Datenqualität & Abgleich", icon="🔍"),
+    ],
+    "📚 Nachschlagen": [
+        st.Page("views/geraeteinventar.py", title="Geräte-Inventar", icon="🖨️"),
+    ],
+}
 st.navigation(pages).run()

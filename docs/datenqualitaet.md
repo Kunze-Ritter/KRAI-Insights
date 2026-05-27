@@ -86,9 +86,10 @@ Stufen (`lizenz_risiko`), nach Delisting-Sicherheit:
 Je Zeile der `grund` (still seit X Tagen / nicht in Radix / ohne Modell / kein Vertrag)
 für die manuelle Prüfung vor dem Delisting.
 
-**Stand 2026-05-27:** 5.412 Kandidaten von 11.815 lizenzierten — davon **2.515 „hoch"**.
-Einsparung = Anzahl × Lizenzgebühr je Gerät. UI: Datenqualität-Tab
-„💸 Lizenz-Verschwendung"; Agent-Route `lizenz_verschwendung`.
+**Stand 2026-05-27:** 5.412 Kandidaten von 11.815 lizenzierten — davon **2.515 „hoch"**
+(nach dem Queue-Filter aus Migration 061 sind es ~2.197 „hoch", da 318 stille Phantome
+herausfielen). Einsparung = Anzahl × Lizenzgebühr je Gerät. UI: Seite **Geld & Chancen** →
+Tab „💸 Lizenz-Verschwendung"; Agent-Route `lizenz_verschwendung`.
 
 > Abgrenzung: Ein Gerät, das **live** meldet, ist KEINE Lizenz-Verschwendung (es ist
 > in Benutzung) — auch ohne Vertrag (das ist Up-Sell, siehe `vw_out_of_contract`).
@@ -111,8 +112,8 @@ Link). Flags:
 
 **Stand 2026-05-27:** 173 Fremdgeräte (live, nicht Radix), davon **23 Konkurrenzmarke,
 22 neu** — z. B. Brother MFC @ Wobak Konstanz, Sharp BP-70C31 @ Weingut Schloss
-Ortenberg, Canon TX-3200 @ Stadt Konstanz (mit Aufstell-Datum). UI: Datenqualität-Tab
-„🕵️ Spionage / Fremdgeräte"; Agent-Route `fremdgeraete`.
+Ortenberg, Canon TX-3200 @ Stadt Konstanz (mit Aufstell-Datum). UI: Seite **Geld & Chancen**
+→ Tab „🕵️ Spionage / Fremdgeräte"; Agent-Route `fremdgeraete`.
 
 ## Print-Server-/Queue-Artefakte (vw_print_server_kunden, Migration 060/061)
 
