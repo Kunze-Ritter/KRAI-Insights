@@ -66,10 +66,17 @@ per Knopfdruck aktualisierbar) plus die KM-Reichweiten-Liste.
 ## 4. Wo Geld liegt (die Kern-Auswertungen)
 
 ### a) Garantie-Reklamation — *seriös bereinigt*
-**488 reklamierbare Garantiefälle** (Toner unter 70 % der Soll-Reichweite,
-innerhalb Garantiezeit, **nur tatsächlich (fast) leere** Kartuschen),
-durchschnittlich nur 30 % der Soll-Menge geliefert.
-**Geschätzt ~22.400 € erstattbar** (Spanne 6.300–74.800 €, Restwert-Modell).
+**574 reklamierbare Garantiefälle** (Toner unter 70 % der Soll-Reichweite,
+innerhalb Garantiezeit, **nur tatsächlich (fast) leere** Kartuschen, nur
+**belastbarer** Hersteller-Soll = Konfidenz hoch/mittel), durchschnittlich nur ~29 %
+der Soll-Menge geliefert. **Geschätzt ~27.100 € erstattbar** (Spanne 7.600–89.700 €,
+Restwert-Modell). + 24 weitere Fälle mit unsicherer OEM-Referenz (separat, manuell).
+
+> Sprung von 488 → 574 durch den OEM-Soll-Backfill (Migration 062): Die Garantie-
+> Bewertung „sah" vorher nur 14 % der Tonerwechsel (alte Radix-Soll-Quelle). Mit den
+> Crawler/KM-Reichweiten deckt sie jetzt ~85 % ab — +84 echte, belastbare Fälle, die
+> vorher mangels OEM-Referenz unsichtbar waren. Rauschige Referenzen sind als
+> „niedrig" getiert (nicht in der Headline).
 
 | Hersteller | Fälle | erstattbar (€) |
 |---|---|---|
@@ -111,6 +118,9 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
 
 ## 5. Service & vorausschauende Wartung
 
+- **Standzeit-/Yield-Bild:** jetzt **1.603 Modell/Farbe-Kombinationen** (vorher nur
+  ~53) — durch den OEM-Soll-Backfill (Migration 062) deckt die Standzeit-Bewertung
+  ~85 % der Tonerwechsel ab statt 14 %. Grundlage für Kalkulation und Reklamation.
 - **Ersatzteil-Frühausfälle:** 204 seiten-belegte Fälle (Trommel/Fixierer/Walze
   unter Soll) — Reklamations- und Qualitätssignal.
 - **Verbrauchsmaterial in 14 Tagen fällig:** 607 (proaktive Lieferung).
@@ -154,6 +164,10 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
    und Garantie. Teils abgebaut/offline — sollte aber bereinigt/geklärt werden.
 9. **Kyocera 1 Modell (402ci)** offen; einige **fremde Radix-Geräte** gehören in
    die KRAI-Parts-Datenbank, nicht nach Insights (Zuständigkeit geklärt).
+11. **Konica-Minolta-Toner-Soll für Garantie/Yield noch offen** (~3.000 Events):
+    Der OEM-Soll-Backfill (Migration 062) deckt HP/Lexmark/Kyocera ab; KM hat keine
+    per-Modell-Kompatibilität (Excel-Pfad) → braucht eine bizhub→KM-Modellfamilie-
+    Brücke. Folgeschritt.
 
 ### 🔒 Sicherheit (vor breitem Rollout)
 10. **Dashboard ohne Anmeldung** (nur im Docker-/Dev-Netz). Vor dem Ausrollen an
@@ -163,7 +177,7 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
 
 ## 7. Technischer Stand
 
-- **61 Datenbank-Migrationen** angewendet (versioniert, idempotent, zurückbaubar).
+- **62 Datenbank-Migrationen** angewendet (versioniert, idempotent, zurückbaubar).
 - **26 automatisierte Tests grün**, Code-Linting sauber.
 - Hersteller-Crawler in eigenem Repo (Daten in versionierten Seeds — gehen nie
   verloren, per `npm run refresh` aktualisierbar).
