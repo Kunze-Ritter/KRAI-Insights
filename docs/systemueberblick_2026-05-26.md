@@ -93,6 +93,13 @@ Aus demselben Befund: Kunden werfen **halbvolle Kartuschen weg**.
   auf Schätz-Zählern (Risiko in beide Richtungen).
 - 11.244 Verträge erfasst; ~488.500 € Material aus 88.000 Kosten-Positionen.
 
+### e) Wettbewerbs-Radar („Spionage") — *neue Markt-Intelligenz*
+Bleibt der Flotten-Agent (DCA) nach Vertragsende auf dem Kundenserver, melden sich
+dort weiter alle Geräte — auch **neue Konkurrenzgeräte**, die der Kunde aufstellt.
+**173 Fremdgeräte** (melden live, nicht in unserem Service), davon **23 Konkurrenz-
+marken (22 neu)** — z. B. Brother @ Wobak Konstanz, Sharp @ Weingut Schloss Ortenberg,
+Canon @ Stadt Konstanz. = Wettbewerbs-Intel + Win-Back-Signal (oder Agent deinstallieren).
+
 ### d) Lizenz-Verschwendung (CSP) — *neuer Kostenhebel*
 CSP nimmt Geräte automatisch unter Lizenz, auch abgebaute/ersetzte → laufende
 Gebühr ohne Gegenwert. **5.412 lizenzierte, aber inaktive Geräte** (von 11.815) —
