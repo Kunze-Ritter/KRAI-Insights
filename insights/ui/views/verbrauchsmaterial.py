@@ -48,7 +48,12 @@ def kennzahlen() -> dict:
         waste_eur = conn.execute(
             text("SELECT COALESCE(sum(verschwendung_eur), 0) FROM insights.vw_toner_waste")
         ).scalar()
-    return {"cls": cls, "flott": flott, "garantie": garantie, "waste_eur": waste_eur}
+        cov = conn.execute(text(
+            "SELECT count(*) FILTER (WHERE hat_oem_daten), count(*) "
+            "FROM insights.vw_device_oem_coverage WHERE device_status='live'"
+        )).one()
+    cov_pct = round(100.0 * cov[0] / cov[1]) if cov and cov[1] else 0
+    return {"cls": cls, "flott": flott, "garantie": garantie, "waste_eur": waste_eur, "cov_pct": cov_pct}
 
 
 @st.cache_data(ttl=300)
@@ -65,14 +70,17 @@ setup_page(
 st.caption(f"📖 Garantie-Logik, Fehlmeldungs-Filter & Restwert-Modell: [Doku Garantie]({doc('garantie.md')})")
 
 k = kennzahlen()
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("Echte Wechsel (mit Seriennummer)", f"{k['cls'].get('real_new_cartridge', 0):,}".replace(",", "."))
-c2.metric("Standzeit vs. Hersteller-Soll", f"{int(k['flott'])} %" if k["flott"] else "—")
-c3.metric("Mögliche Garantiefälle", f"{k['garantie'].get('claim', 0):,}".replace(",", "."),
+c1, c2, c3, c4, c5, c6 = st.columns(6)
+c1.metric("OEM-Abdeckung (Live)", f"{k['cov_pct']} %",
+          help="Anteil der Live-Geräte mit OEM-Reichweiten (Crawler: Lexmark/HP/Kyocera + "
+               "KM-Liste). Basis für Garantie-/Standzeit-Bewertung.")
+c2.metric("Echte Wechsel (mit Seriennummer)", f"{k['cls'].get('real_new_cartridge', 0):,}".replace(",", "."))
+c3.metric("Standzeit vs. Hersteller-Soll", f"{int(k['flott'])} %" if k["flott"] else "—")
+c4.metric("Mögliche Garantiefälle", f"{k['garantie'].get('claim', 0):,}".replace(",", "."),
           help="Nur (nahezu) leere Kartuschen unter 70 % Soll-Tonermenge — echte Frühausfälle.")
-c4.metric("Vorzeitige Tausche", f"{k['garantie'].get('vorzeitiger_tausch', 0):,}".replace(",", "."),
+c5.metric("Vorzeitige Tausche", f"{k['garantie'].get('vorzeitiger_tausch', 0):,}".replace(",", "."),
           help="Kartuschen mit hoher Restfüllung weggeworfen — kein Defekt, sondern Verschwendung.")
-c5.metric("Weggeworfener Toner", f"~{int(k['waste_eur'] or 0):,} €".replace(",", "."),
+c6.metric("Weggeworfener Toner", f"~{int(k['waste_eur'] or 0):,} €".replace(",", "."),
           help="Geschätzter Wert des weggeworfenen Toners (Restfüllung x Tonerpreis).")
 
 st.divider()
