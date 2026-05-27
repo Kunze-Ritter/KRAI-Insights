@@ -65,3 +65,30 @@ Server-Tausch, Netzwerk).
 - **Geräte-Status:** „aktiv" = Datentransfer in den letzten **60 Tagen** (nicht 30 —
   deckt ~9 Wochen Sommerferien ab). Der Admin-Flag „aktiv" überzeichnet die Flotte
   ~2× (echte Live-Geräte ~6.400 von ~11.950).
+
+## Lizenz-Verschwendung (vw_lizenz_verschwendung, Migration 057)
+
+**Problem (user):** CSP nimmt Geräte automatisch unter Lizenz — auch solche, die der
+Kunde nur noch herumstehen hat (abgebaut, ersetzt, offline). Das kostet pro Gerät
+Lizenzgebühr ohne Gegenwert.
+
+`vw_lizenz_verschwendung` listet **Delisting-Kandidaten**: Geräte, die noch
+CSP-lizenziert sind (`device_status NOT IN ('deleted','deactivated')` = die ~11.815
+„aktiven", deckt sich mit dem Admin-Flag), aber **nicht mehr `live`** sind — sie kosten
+Lizenz, liefern aber nichts.
+
+Stufen (`lizenz_risiko`), nach Delisting-Sicherheit:
+- **hoch** — nie gemeldet, ODER > 365 Tage still **und** nicht in Radix, ODER ohne
+  Modell/Hersteller (Phantom). Fast sicher weg.
+- **mittel** — > 180 Tage keine Daten.
+- **niedrig** — 60–180 Tage still (kann temporär offline sein).
+
+Je Zeile der `grund` (still seit X Tagen / nicht in Radix / ohne Modell / kein Vertrag)
+für die manuelle Prüfung vor dem Delisting.
+
+**Stand 2026-05-27:** 5.412 Kandidaten von 11.815 lizenzierten — davon **2.515 „hoch"**.
+Einsparung = Anzahl × Lizenzgebühr je Gerät. UI: Datenqualität-Tab
+„💸 Lizenz-Verschwendung"; Agent-Route `lizenz_verschwendung`.
+
+> Abgrenzung: Ein Gerät, das **live** meldet, ist KEINE Lizenz-Verschwendung (es ist
+> in Benutzung) — auch ohne Vertrag (das ist Up-Sell, siehe `vw_out_of_contract`).

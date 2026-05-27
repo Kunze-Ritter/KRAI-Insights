@@ -206,6 +206,34 @@ def r_waste_forecast(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_waste_box_forecast", sql))
 
 
+def r_license_waste(args: dict[str, Any]) -> AnswerCard:
+    risiko = (args.get("risiko") or "hoch").strip().lower()
+    kunde = (args.get("kunde") or "").strip()
+    where = []
+    params: dict[str, Any] = {}
+    if risiko in ("hoch", "mittel", "niedrig"):
+        where.append("lizenz_risiko = :r")
+        params["r"] = risiko
+    if kunde:
+        where.append("customer_name ILIKE :cl")
+        params["cl"] = f"%{kunde}%"
+    wsql = (" WHERE " + " AND ".join(where)) if where else ""
+    sql = (
+        "SELECT customer_name AS kunde, customer_city AS ort, model_display AS modell, "
+        "device_serial AS seriennummer, radix_device_number AS radix_id, device_status AS status, "
+        "tage_inaktiv, in_radix, aktiver_vertrag, lizenz_risiko, grund "
+        f"FROM insights.vw_lizenz_verschwendung{wsql} ORDER BY tage_inaktiv DESC NULLS FIRST LIMIT 100"
+    )
+    df = _df(sql, params)
+    txt = (
+        f"{len(df)} Lizenz-Verschwendungs-Kandidaten ({risiko}): Geräte, die noch CSP-lizenziert sind "
+        "(in der Flotten-Verwaltung gezählt), aber nicht mehr aktiv melden — nie gemeldet, lange still, "
+        "nicht in Radix oder ohne Modell. Wahrscheinlich abgebaut/ersetzt → in CSP delisten spart die "
+        "Lizenzgebühr je Gerät. Vor dem Delisting je Zeile den Grund prüfen."
+    )
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_lizenz_verschwendung", sql))
+
+
 # --- Routes -----------------------------------------------------------------
 def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
     q = (args.get("suche") or "").strip()
@@ -684,6 +712,15 @@ REGISTRY: list[Route] = [
                              "description": "faellig = >=80 % voll, bald = 60-80 % (Standard: beide)"},
            "kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
           r_waste_forecast),
+    Route("lizenz_verschwendung",
+          "Geräte, die noch CSP-lizenziert sind, aber nicht mehr aktiv (nie gemeldet, lange still, "
+          "nicht in Radix, ohne Modell) — wahrscheinlich abgebaut/ersetzt und kosten unnötig Lizenz. "
+          "Delisting-Kandidaten. Für Fragen wie 'welche Geräte sind unnötig lizenziert', 'Geräte nicht "
+          "in Radix', 'lange nicht gemeldet', 'Lizenz-Verschwendung', 'Phantom-Geräte', 'Geräte delisten'.",
+          {"risiko": {"type": "string", "enum": ["hoch", "mittel", "niedrig"],
+                      "description": "hoch = fast sicher weg (Standard), mittel = >180 Tage, niedrig = 60-180 Tage"},
+           "kunde": {"type": "string", "description": "optionaler Kunden-Filter"}}, [],
+          r_license_waste),
     Route("deckung_kunden",
           "Kunden mit realer Druck-Deckung über einer Schwelle (Standard 6 % = Klickpreis-Annahme) — "
           "Kandidaten für Klickpreis-Nachberechnung, weil sie mehr Toner verbrauchen als berechnet.",
