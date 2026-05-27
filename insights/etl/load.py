@@ -729,20 +729,27 @@ def load_vbm_crawler() -> tuple[int, int]:
 def refresh_model_toner_oem() -> int:
     """Baut den materialisierten Modell-Toner-Soll (model_toner_oem) neu auf.
 
-    Aggregiert die schwere Per-Geraet-Matching-View vw_device_supplies EINMALIG auf
-    Modell x Farbe (Median/Min/Max der OEM-Toner-Reichweite). vw_vbm_lifecycle faellt
-    darauf zurueck, wo der gespeicherte oem_target_pages fehlt -> Garantie + Yield
-    bewerten dann ~85 % statt 14 % der Tonerwechsel (HP/Lexmark/Kyocera). Muss nach
-    jeder Aenderung an part_lifetime_oem (VBM-Crawler/KM) bzw. devices_unified laufen.
-    Siehe Migration 062.
+    Zwei Quellen, beide voll rebuildbar:
+    - `device_supplies`: aggregiert die schwere Per-Geraet-Matching-View vw_device_supplies
+      EINMALIG auf Modell x Farbe (Median/Min/Max der OEM-Toner-Reichweite) — deckt
+      HP/Lexmark/Kyocera (Migration 062).
+    - `self_target`: leitet den Soll je Modell x Farbe aus KMs EIGENEN, von FleetMgmt
+      gemeldeten oem_target_pages ab (Median ueber Geschwister-Events) — schliesst die
+      KM-Luecke, da KM keine Crawler-Kompatibilitaet hat (Migration 063). Crawler-Zeilen
+      behalten Vorrang (ON CONFLICT DO NOTHING).
+
+    vw_vbm_lifecycle faellt auf diesen Soll zurueck, wo der gespeicherte oem_target_pages
+    je Event fehlt -> Garantie + Yield bewerten weit mehr Tonerwechsel. Muss nach jeder
+    Aenderung an part_lifetime_oem (VBM-Crawler) bzw. devices_unified/vbm_lifecycle_events laufen.
     """
     with insights_engine().begin() as conn:
-        conn.execute(text("TRUNCATE insights.model_toner_oem"))
-        n = conn.execute(
+        # Crawler-abgeleitete Zeilen neu aufbauen (Selbst-Soll bleibt erhalten).
+        conn.execute(text("DELETE FROM insights.model_toner_oem WHERE source = 'device_supplies'"))
+        n_cr = conn.execute(
             text(
                 """
                 INSERT INTO insights.model_toner_oem
-                    (model_display, color_channel, oem_min, oem_median, oem_max, sku_count, is_mono_model)
+                    (model_display, color_channel, oem_min, oem_median, oem_max, sku_count, is_mono_model, source)
                 WITH t AS (
                     SELECT model_display, color_channel, nominal_lifetime_pages
                     FROM insights.vw_device_supplies
@@ -758,13 +765,45 @@ def refresh_model_toner_oem() -> int:
                        round(percentile_cont(0.5) WITHIN GROUP (ORDER BY t.nominal_lifetime_pages))::int,
                        max(t.nominal_lifetime_pages)::int,
                        count(*)::int,
-                       bool_or(m.is_mono)
+                       bool_or(m.is_mono),
+                       'device_supplies'
                 FROM t JOIN mono m USING (model_display)
                 GROUP BY t.model_display, t.color_channel
+                ON CONFLICT (model_display, color_channel) DO NOTHING
                 """
             )
         ).rowcount
-    logger.info("model_toner_oem neu aufgebaut: %d Modell/Farbe-Zeilen", n)
+        # Selbst-Soll (KM u. a.) neu aufbauen; Crawler-Zeilen behalten Vorrang.
+        conn.execute(text("DELETE FROM insights.model_toner_oem WHERE source = 'self_target'"))
+        n_self = conn.execute(
+            text(
+                """
+                INSERT INTO insights.model_toner_oem
+                    (model_display, color_channel, oem_min, oem_median, oem_max, sku_count, is_mono_model, source)
+                SELECT d.model_display,
+                       CASE lower(btrim(ev.colorant))
+                            WHEN 'black' THEN 'bw' WHEN 'cyan' THEN 'c'
+                            WHEN 'magenta' THEN 'm' WHEN 'yellow' THEN 'y' END AS chan,
+                       min(ev.oem_target_pages)::int,
+                       round(percentile_cont(0.5) WITHIN GROUP (ORDER BY ev.oem_target_pages))::int,
+                       max(ev.oem_target_pages)::int,
+                       count(*)::int,
+                       NULL::boolean,
+                       'self_target'
+                FROM insights.vbm_lifecycle_events ev
+                JOIN insights.devices_unified d ON d.fleetmgmt_device_id = ev.fleetmgmt_device_id
+                WHERE ev.oem_target_pages > 0
+                  AND lower(btrim(ev.colorant)) IN ('black', 'cyan', 'magenta', 'yellow')
+                  AND d.model_display IS NOT NULL
+                GROUP BY d.model_display, chan
+                HAVING count(*) >= 5
+                ON CONFLICT (model_display, color_channel) DO NOTHING
+                """
+            )
+        ).rowcount
+    n = n_cr + n_self
+    logger.info("model_toner_oem neu aufgebaut: %d Zeilen (%d device_supplies + %d self_target)",
+                n, n_cr, n_self)
     return n
 
 

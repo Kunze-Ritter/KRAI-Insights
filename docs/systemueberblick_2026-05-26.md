@@ -66,17 +66,18 @@ per Knopfdruck aktualisierbar) plus die KM-Reichweiten-Liste.
 ## 4. Wo Geld liegt (die Kern-Auswertungen)
 
 ### a) Garantie-Reklamation — *seriös bereinigt*
-**574 reklamierbare Garantiefälle** (Toner unter 70 % der Soll-Reichweite,
+**590 reklamierbare Garantiefälle** (Toner unter 70 % der Soll-Reichweite,
 innerhalb Garantiezeit, **nur tatsächlich (fast) leere** Kartuschen, nur
 **belastbarer** Hersteller-Soll = Konfidenz hoch/mittel), durchschnittlich nur ~29 %
 der Soll-Menge geliefert. **Geschätzt ~27.100 € erstattbar** (Spanne 7.600–89.700 €,
-Restwert-Modell). + 24 weitere Fälle mit unsicherer OEM-Referenz (separat, manuell).
+Restwert-Modell). + 27 weitere Fälle mit unsicherer OEM-Referenz (separat, manuell).
 
-> Sprung von 488 → 574 durch den OEM-Soll-Backfill (Migration 062): Die Garantie-
-> Bewertung „sah" vorher nur 14 % der Tonerwechsel (alte Radix-Soll-Quelle). Mit den
-> Crawler/KM-Reichweiten deckt sie jetzt ~85 % ab — +84 echte, belastbare Fälle, die
-> vorher mangels OEM-Referenz unsichtbar waren. Rauschige Referenzen sind als
-> „niedrig" getiert (nicht in der Headline).
+> Sprung von 488 → 590 durch den OEM-Soll-Backfill (Migration 062 + KM-Brücke 063):
+> Die Garantie-Bewertung „sah" vorher nur 14 % der Tonerwechsel (alte Radix-Soll-Quelle).
+> Mit den Crawler-Reichweiten (HP/Lexmark/Kyocera) plus KMs eigenem Selbst-Soll deckt sie
+> jetzt fast alle echten Tonerwechsel ab — +100 belastbare Fälle, die vorher mangels
+> OEM-Referenz unsichtbar waren. Rauschige Referenzen sind als „niedrig" getiert
+> (nicht in der Headline).
 
 | Hersteller | Fälle | erstattbar (€) |
 |---|---|---|
@@ -164,10 +165,12 @@ Liste mit Begründung im Dashboard (Datenqualität) + Assistent.
    und Garantie. Teils abgebaut/offline — sollte aber bereinigt/geklärt werden.
 9. **Kyocera 1 Modell (402ci)** offen; einige **fremde Radix-Geräte** gehören in
    die KRAI-Parts-Datenbank, nicht nach Insights (Zuständigkeit geklärt).
-11. **Konica-Minolta-Toner-Soll für Garantie/Yield noch offen** (~3.000 Events):
-    Der OEM-Soll-Backfill (Migration 062) deckt HP/Lexmark/Kyocera ab; KM hat keine
-    per-Modell-Kompatibilität (Excel-Pfad) → braucht eine bizhub→KM-Modellfamilie-
-    Brücke. Folgeschritt.
+11. ~~**Konica-Minolta-Toner-Soll für Garantie/Yield offen**~~ ✅ **GELÖST** (Migration
+    063): KM-Soll wird aus KMs **eigenen**, von FleetMgmt gemeldeten Werten abgeleitet
+    (Selbst-Soll, Median je Modell×Farbe). Die „~3.000 offenen KM-Events" waren
+    irreführend — 2.638 davon sind Leer-Farbe/Gesamtzähler (keine Patrone); von den
+    376 echten Patronen-Events sind 318 (85 %) bewertbar. Rest: 58 auf 5 referenzlosen
+    Modellen (AccurioPress-Produktionsdruck, C4051i) — vernachlässigbar.
 
 ### 🔒 Sicherheit (vor breitem Rollout)
 10. **Dashboard ohne Anmeldung** (nur im Docker-/Dev-Netz). Vor dem Ausrollen an
