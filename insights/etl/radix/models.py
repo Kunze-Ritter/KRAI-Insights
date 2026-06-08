@@ -191,11 +191,15 @@ class RadixActivity(_RadixModel):
     customer_town: str | None = Field(None, alias="customerTown")
     location: str | None = None
     town: str | None = None
-    employee_id: str | None = Field(None, alias="employeeId")  # pseudonymous; no name
+    employee_id: str | None = Field(None, alias="employeeId")  # labour logger (pseudonymous)
     employee_id_responsible: str | None = Field(None, alias="employeeIdResponsible")
+    # Zugewiesener Techniker = EIGENER Mitarbeiter -> Name laut Policy erlaubt (nur Kunden-
+    # Kontakte werden pseudonymisiert). Wird fürs Service-Dashboard genutzt (Migration 067).
+    employee_responsible: str | None = Field(None, alias="employeeResponsible")
     team_id: str | None = Field(None, alias="teamId")
-    # Omitted PII: employee, employeeResponsible, contact, contactEmail,
-    # contactFirstname, contactSurname, contactId, contactEmail.
+    team: str | None = None
+    # Omitted PII (Kunden-Kontakte): contact, contactEmail, contactFirstname,
+    # contactSurname, contactId. (`employee` = Arbeitszeit-Logger-Name, ungenutzt.)
 
 
 class RadixWorkTime(_RadixModel):
