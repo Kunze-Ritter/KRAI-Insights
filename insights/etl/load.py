@@ -545,14 +545,30 @@ async def _pull_ticket_notes(customer_limit: int | None) -> list[tuple[str, dict
     return rows
 
 
+_UPSERT_EMPLOYEE = text(
+    "INSERT INTO insights.radix_employees (employee_id, name) VALUES (:id, :name) "
+    "ON CONFLICT (employee_id) DO UPDATE SET name = EXCLUDED.name, ingested_at = now()"
+)
+
+
 def crawl_ticket_notes(customer_limit: int | None = None) -> int:
-    """Crawl Radix activity diagnostic text into activity_notes (contacts pseudonymised)."""
+    """Crawl Radix activity diagnostic text into activity_notes (contacts pseudonymised).
+
+    Also harvests the own-staff name map (employee_id -> name) from both the assigned
+    technician (employeeResponsible) and the labour logger (employee) into
+    radix_employees, so even fallback ids resolve to a name. Customer contacts excluded.
+    """
     raw = asyncio.run(_pull_ticket_notes(customer_limit))
     deduped: dict[str, dict[str, Any]] = {}
+    employees: dict[str, str] = {}
     for cid, a in raw:
         aid = a.get("id")
         if not aid:
             continue
+        for id_field, name_field in (("employeeIdResponsible", "employeeResponsible"), ("employeeId", "employee")):
+            eid, ename = a.get(id_field), a.get(name_field)
+            if eid and ename:
+                employees[str(eid)] = str(ename)
         deduped[aid] = {
             "radix_activity_id": aid,
             "radix_ticket_id": a.get("ticketId"),
@@ -573,7 +589,11 @@ def crawl_ticket_notes(customer_limit: int | None = None) -> int:
     with insights_engine().begin() as conn:
         for batch in _batched(params, _BATCH):
             conn.execute(_UPSERT_NOTE, batch)
-    logger.info("activity_notes loaded: %d (contacts pseudonymised)", len(params))
+        emp_rows = [{"id": k, "name": v} for k, v in employees.items()]
+        for batch in _batched(emp_rows, _BATCH):
+            conn.execute(_UPSERT_EMPLOYEE, batch)
+    logger.info("activity_notes loaded: %d (contacts pseudonymised); radix_employees: %d names",
+                len(params), len(employees))
     return len(params)
 
 
