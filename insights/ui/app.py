@@ -56,6 +56,7 @@ pages = {
     ],
     "🛠️ Service planen": [
         st.Page("views/servicequalitaet.py", title="Service-Qualität", icon="🚨"),
+        st.Page("views/service.py", title="Teile-Einsatz & Schulung", icon="🧰"),
     ],
     "💶 Abrechnung & Verträge": [
         st.Page("views/kosten.py", title="Kosten & Verträge", icon="💶"),

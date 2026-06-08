@@ -91,6 +91,8 @@ class Settings(BaseSettings):
     warranty_default_days: int = 365
     customer_mapping_path: str = "config/customer_mapping.yaml"
     warranty_rules_path: str = "config/warranty_rules.yaml"
+    # Techniker-Aliase (employee_id -> Kürzel/Name) für das Service-Dashboard.
+    technician_aliases_path: str = "config/technicians.yaml"
 
     # --- VBM Crawler bridge -------------------------------------------------
     # Pfad zum `output/` des Schwester-Repos KRAI-Crawler-VBM. Leer = Sibling-

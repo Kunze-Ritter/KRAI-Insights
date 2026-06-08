@@ -20,8 +20,10 @@ import asyncio
 from collections.abc import Iterable, Iterator
 from datetime import datetime
 from itertools import islice
+from pathlib import Path
 from typing import Any
 
+import yaml
 from sqlalchemy import text
 
 from insights.core.config import get_settings
@@ -833,6 +835,42 @@ _INSERT_SNMP = text(
 )
 
 
+def load_technician_aliases() -> int:
+    """Load config/technicians.yaml (employee_id -> Kürzel/Name) into technician_aliases.
+
+    Config-driven (no source data): maps Radix' pseudonymous employee_id to the team's
+    own initials/name for the Service dashboard. Missing file = no-op (views fall back
+    to employee_id). Accepts a nested `technicians:` map or a flat employee_id->Kürzel map;
+    each value may be a string (Kürzel) or a {kuerzel, name} object.
+    """
+    path = Path(get_settings().technician_aliases_path)
+    if not path.exists():
+        # Keine Config = keine Aliase: Tabelle leeren (Fallback auf employee_id), nicht stale lassen.
+        logger.warning("technician_aliases: %s nicht gefunden — Aliase geleert (Fallback employee_id)", path)
+        with insights_engine().begin() as conn:
+            conn.exec_driver_sql("TRUNCATE insights.technician_aliases")
+        return 0
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    techs = data.get("technicians", data) if isinstance(data, dict) else {}
+    rows: list[dict[str, Any]] = []
+    for emp, val in techs.items():
+        if isinstance(val, dict):
+            rows.append({"e": str(emp), "k": val.get("kuerzel"), "n": val.get("name")})
+        else:
+            rows.append({"e": str(emp), "k": str(val) if val is not None else None, "n": None})
+    with insights_engine().begin() as conn:
+        conn.exec_driver_sql("TRUNCATE insights.technician_aliases")
+        if rows:
+            conn.execute(
+                text("INSERT INTO insights.technician_aliases (employee_id, kuerzel, name) "
+                     "VALUES (:e, :k, :n) ON CONFLICT (employee_id) DO UPDATE "
+                     "SET kuerzel = EXCLUDED.kuerzel, name = EXCLUDED.name, ingested_at = now()"),
+                rows,
+            )
+    logger.info("technician_aliases loaded: %d", len(rows))
+    return len(rows)
+
+
 def load_snmp_predictions() -> int:
     """Snapshot-load current SNMP predictions (ACCSNMPHISTORY Actual=1)."""
     total = 0
@@ -1069,12 +1107,14 @@ if __name__ == "__main__":
     parser.add_argument("--counters", action="store_true", help="load monthly page-counter timeline")
     parser.add_argument("--events-since-days", type=int, default=None,
                         help="bound event load to the last N days (default: full history)")
+    parser.add_argument("--technicians", action="store_true",
+                        help="load technician aliases from config/technicians.yaml")
     parser.add_argument("--all", action="store_true", help="FleetMgmt devices + Radix + VBM + models")
     args = parser.parse_args()
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
                   or args.contracts or args.costs or args.snmp or args.events
                   or args.customers or args.shipping or args.counters or args.tickets
-                  or args.partlifetimes or args.vbm_crawler)
+                  or args.partlifetimes or args.vbm_crawler or args.technicians)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -1126,3 +1166,6 @@ if __name__ == "__main__":
     if args.tickets:
         tn = crawl_ticket_notes(customer_limit=args.ticket_limit)
         logger.info("Ticket notes loaded: %d", tn)
+    if args.all or args.technicians:
+        ta = load_technician_aliases()
+        logger.info("Technician aliases loaded: %d", ta)

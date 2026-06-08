@@ -1,0 +1,79 @@
+# Service — Teile-Einsatz & „Shotgun-Reparatur"
+
+Ziel: Muster finden, wo bei einem Einsatz **auf Verdacht zu viele Teile** (Bildtrommel,
+Entwickler, Transferband, Fixierer …) auf einmal getauscht werden, statt gezielt — um
+Techniker zu schulen und Material-Kosten zu senken. Quelle: Migration 066
+(`vw_service_visits`, `vw_symptom_part_patterns`, `vw_symptom_teiltyp`,
+`vw_technician_service_profile`). UI: Seite **Service → Teile-Einsatz & Schulung**.
+
+## Was ist ein „Einsatz"?
+
+Ein Einsatz = eine Radix-Aktivität (`radix_activity_id`). Alle Material- und Arbeitszeilen
+einer Aktivität gehören zusammen. Über die `radix_activity_id` lassen sich
+
+- die **getauschten Teile** zählen (Positionen und verschiedene **Teiltypen**),
+- der **Techniker** zuordnen (`employee_id` der Arbeitszeile — 97,9 % der Material-Einsätze
+  haben eine), und
+- der **Ticket-Freitext** (Problem/Technik) als **Symptom** klassifizieren
+
+an einem Einsatz zusammenführen.
+
+## Symptom-Klassifikation
+
+`insights.service_symptom(text)` ordnet den Ticket-Freitext (Problem + Technik) einem
+Symptom zu: **Papierstau, Bildqualität, Scanner/Einzug, Geräusch, Toner/Verbrauch,
+Fehler/Störung, Wartung/Installation, Sonstiges**. Heuristik über deutsche Service-Notizen
+(Schlagwörter). Die konkreten Stör-Symptome haben Vorrang vor generischer Fehler-Sprache;
+**Wartung/Installation** greift nur, wenn gar kein Stör-Symptom vorkam.
+
+### Warum Wartung getrennt wird (wichtig)
+
+Viele Tickets sind **geplante Wartung oder Installation** („Wartung durchführen", „SD-Teile
+installieren", „Treiber installieren"). Dort ist ein **Teile-Kit korrekt** — kein Shotgun.
+Diese Einsätze werden separat ausgewiesen und **nicht** als Shotgun-Verdacht gezählt
+(sonst würde geplante Wartung fälschlich als Verschwendung erscheinen).
+
+## Shotgun-Verdacht
+
+`shotgun_verdacht = (3+ verschiedene Teiltypen) UND (Symptom ≠ Wartung/Installation)`.
+Drei oder mehr **verschiedene** Teiltypen bei einer Störung deuten auf „tausch mal alles
+und hoff, dass es klappt". Es ist ein **Verdacht**, kein Beweis — einzelne Fälle vor einem
+Schulungsgespräch im Tab „Shotgun-Einsätze" mit dem Ticket-Text prüfen (manchmal ist der
+Mehrfach-Tausch berechtigt).
+
+## Drei Auswertungen
+
+1. **Symptom → Teil-Muster** (`vw_symptom_part_patterns` + `vw_symptom_teiltyp`): bei welchem
+   Symptom werden wie viele/welche Teile getauscht und wie hoch ist die Shotgun-Quote. Befund:
+   **Bildqualität** hat die höchste Quote (häufigste Kombi: Trommel) — klassisch „bei Streifen
+   Trommel + oft Entwickler/Transfer mittauschen".
+2. **Shotgun-Einsätze** (`vw_service_visits`, gefiltert): die konkreten Verdachts-Einsätze mit
+   Teil-Kombination und Ticket-Text.
+3. **Techniker-Profil** (`vw_technician_service_profile`): Shotgun-Quote und Ø Teiltypen je
+   Techniker (ab 10 Einsätzen) — die Schulungs-Liste.
+
+## Techniker-Zuordnung
+
+Radix liefert nur eine **pseudonyme `employee_id`**. Das Dashboard zeigt diese ID, bis sie in
+`config/technicians.yaml` einem Kürzel/Namen zugeordnet ist (DSGVO-konform: eigene Techniker
+dürfen benannt werden). Ablauf:
+
+```powershell
+# Entwurf raten (Kürzel aus dem Call-Log „<KÜRZEL> <Datum> <Zeit>:" je employee_id, mit Konfidenz)
+docker exec krai-insights-app python scripts/seed_technicians.py     # -> config/technicians.draft.yaml
+# Entwurf PRÜFEN (niedrige Konfidenz = oft Back-Office, das Notizen schreibt), korrigieren,
+# nach config/technicians.yaml kopieren, dann laden:
+docker exec krai-insights-app python -m insights.etl.load --technicians
+```
+
+Fehlt die Datei, fällt das Dashboard sauber auf die `employee_id` zurück. `config/technicians.yaml`
+und der Entwurf sind gitignored; `config/technicians.yaml.example` ist die Vorlage.
+
+## Grenzen / Ehrlichkeit
+
+- **Material-€ auf Verdachts-Einsätzen** ist ein Hinweis auf mögliche Über-Tausche, **kein
+  bewiesener Verlust** — nur ~16 % der Material-Zeilen tragen einen Preis (Radix-Limit).
+- Die Symptom-Klassifikation ist eine Heuristik; „Sonstiges" ist der größte Topf (Notizen ohne
+  klares Symptom). Verfeinerung der Schlagwörter ist jederzeit möglich.
+- Kein direkter Link zwischen FleetMgmt-**Fehlercodes** und dem Einsatz (zeitlich versetzt);
+  das Symptom kommt aus dem **Ticket-Text**, nicht aus dem Maschinen-Alarm.
