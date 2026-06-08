@@ -146,12 +146,23 @@ async def answer(question: str) -> AnswerCard:
         return await _analyze(question, card, client)
 
     # No catalog route matched — try the guarded free-text SQL fallback.
-    card = await text_to_sql.generate_and_run(question, client)
-    if card is not None:
-        return card
+    fallback = await text_to_sql.generate_and_run(question, client)
+    if fallback is not None:
+        return fallback
 
-    # Last resort — the model's free-text reply with low trust.
+    # Last resort — no route fit and no safe SQL could be generated. Be explicit that
+    # this is a "no matching analysis" case (distinct from the "KI-Dienst nicht erreichbar"
+    # error above) and steer the user with concrete examples instead of a dead end.
+    logger.info("no route matched and no SQL fallback for: %s", question[:120])
     return AnswerCard(
-        text=message.get("content") or "Dazu ist keine Auswertung verfügbar.",
-        citation={"route": None, "vertrauen": 0.3},
+        text=(
+            "Dazu habe ich keine passende Auswertung. Ich kann z. B. helfen mit:\n"
+            "- *Gib mir einen Überblick — wo können wir Geld zurückholen?*\n"
+            "- *Garantie-Kandidaten für <Kunde>*\n"
+            "- *Welche Geräte unter Vertrag melden nichts?*\n"
+            "- *Fehlercode 200.03*\n"
+            "- *Welcher Toner ist bei <Kunde> bald leer?*\n\n"
+            "Bitte die Frage etwas konkreter stellen (Kunde, Gerät, Hersteller, Fehlercode …)."
+        ),
+        citation={"route": None, "vertrauen": 0.0},
     )

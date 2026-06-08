@@ -50,6 +50,17 @@ def _eur(n: float | int) -> str:
     return f"{round(n):,}".replace(",", ".") + " €"
 
 
+def _one_of(value: Any, allowed: set[str], default: str) -> str:
+    """Coerce a free-text enum arg to one of `allowed` (whitelist), else `default`.
+
+    Guards against the LLM passing an out-of-enum value (e.g. farbe='rot') that would
+    otherwise reach SQL and silently return an empty result. The value is only ever
+    selected from a fixed in-code set — never interpolated raw into SQL.
+    """
+    v = str(value or "").strip().lower()
+    return v if v in allowed else default
+
+
 # --- Lagebericht / Garantie-Geld (priority: recoverable money) --------------
 def r_lagebericht(args: dict[str, Any]) -> AnswerCard:
     sql = "SELECT * FROM insights.vw_lagebericht"
@@ -321,15 +332,14 @@ def r_device_lookup(args: dict[str, Any]) -> AnswerCard:
 
 
 def r_fleet_count(args: dict[str, Any]) -> AnswerCard:
-    nach = (args.get("nach") or "hersteller").lower()
     colmap = {
         "hersteller": "manufacturer_canonical",
         "status": "device_status",
         "modell": "model_display",
         "kunde": "customer_name",
     }
-    col = colmap.get(nach, "manufacturer_canonical")  # fixed whitelist — safe to interpolate
-    nach = next((k for k, v in colmap.items() if v == col), "hersteller")
+    nach = _one_of(args.get("nach"), set(colmap), "hersteller")
+    col = colmap[nach]  # key came from the fixed whitelist — safe to interpolate
     filt = (args.get("filter") or "").strip()
     where = f"WHERE {col} ILIKE :f " if filt else ""
     sql = (
@@ -348,7 +358,7 @@ def r_fleet_count(args: dict[str, Any]) -> AnswerCard:
 
 
 def r_oem_yield(args: dict[str, Any]) -> AnswerCard:
-    colorant = (args.get("farbe") or "black").lower()
+    colorant = _one_of(args.get("farbe"), {"black", "cyan", "magenta", "yellow"}, "black")
     model = (args.get("modell") or "").strip()
     sql = (
         "SELECT manufacturer_canonical AS hersteller, model_display AS modell, refills AS wechsel, "
