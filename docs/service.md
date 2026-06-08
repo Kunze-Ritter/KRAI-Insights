@@ -65,6 +65,12 @@ Wichtig: Das ist der **verantwortliche Techniker**, NICHT der Arbeitszeit-/Lager
 PEM/KAI/KOS), das die gerichteten Teile ins Ticket bucht — der wäre für die Schulungs-Sicht
 falsch.
 
+Hat ein Ticket **keinen** zugewiesenen Techniker (kommt vor), fällt die Sicht auf den
+Arbeitszeit-Logger zurück. Damit auch dann ein Name erscheint, pflegt der Ticket-Crawl eine
+globale Namensliste `radix_employees` (`employee_id → Name`) aus **beiden** Feldern jeder
+Aktivität (Logger `employee` + Verantwortlicher `employeeResponsible`); `vw_service_visits`
+löst den Techniker darüber auf (Migration 068). So bleibt praktisch kein Techniker namenlos.
+
 **Override (optional):** Will man kurze Kürzel statt voller Namen, mappt man
 `employeeIdResponsible → Kürzel` in `config/technicians.yaml` (`--technicians`); das hat
 Vorrang vor dem Radix-Namen. Ohne Override zeigt das Dashboard den Radix-Klarnamen.
