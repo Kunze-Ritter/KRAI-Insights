@@ -1,0 +1,56 @@
+name: CI
+
+# Lint + Typprüfung + Tests bei jedem PR und Push auf main. Bisher gab es keine
+# automatische Durchsetzung — Tests/Lint mussten manuell laufen. Die DB-abhängigen
+# Tests (test_warranty_invariants.py) überspringen sich ohne Insights-DB selbst,
+# daher bleibt CI ohne Datenbank grün.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # pyodbc (FleetMgmt MSSQL) braucht die unixODBC-Header beim pip-Build.
+      - name: Install system deps for pyodbc
+        run: sudo apt-get update && sudo apt-get install -y unixodbc-dev
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff (lint)
+        run: ruff check insights scripts tests
+
+      - name: Mypy (Typprüfung — beratend)
+        # Nicht blockierend: es gibt vorbestehende Typ-Altlast (vor Einführung des CI).
+        # Liefert Signal im Log; wird blockierend, sobald die Altlast abgebaut ist.
+        continue-on-error: true
+        run: mypy insights
+
+      - name: Pytest
+        run: pytest -q
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks (Secrets-Scan)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

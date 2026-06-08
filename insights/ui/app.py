@@ -19,10 +19,27 @@ import streamlit as st  # noqa: E402
 
 st.set_page_config(page_title="KRAI Insights", page_icon="📊", layout="wide")
 
+# Konfigurations-Plausibilität einmal je Prozess prüfen (nur Log-Warnungen, nie fatal).
+from scripts.env_check import check_env  # noqa: E402
+
+
+@st.cache_resource
+def _env_checked() -> bool:
+    return check_env()
+
+
+_env_checked()
+
 # Passwort-Gate (no-op, wenn DASHBOARD_PASSWORD leer ist — offenes Dev-Setup).
 from insights.ui.auth import require_password  # noqa: E402
 
 require_password()
+
+# Globaler Daten-Aktualitäts-Banner: zeigt sich NUR bei veralteten Tabellen oder einem
+# fehlgeschlagenen Nightly-Lauf (sonst still). Macht "stille Veraltung" sichtbar.
+from insights.ui.freshness import render_banner  # noqa: E402
+
+render_banner()
 
 # Navigation nach ARBEITSABLAEUFEN/JOBS gruppiert (nicht nach Datenquelle): so liegt
 # zusammen, was ein Nutzer fuer EINE Aufgabe braucht. Die Seiten selbst sind unveraendert,

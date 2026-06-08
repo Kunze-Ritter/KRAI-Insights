@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from insights.core.config import get_settings
 from insights.core.db import insights_engine
+from insights.ui.freshness import data_stand, render_status_detail
 from insights.ui.links import doc
 from insights.ui.theme import bar, render_chart, setup_page
 from sqlalchemy import text
@@ -184,6 +185,10 @@ try:
 except Exception:
     st.caption("Assistent: Navigation links, Seite Fragen.")
 
+_stand = data_stand()
+if _stand:
+    st.caption(f"🕒 Daten-Stand: **{_stand}** (jüngster Stand über alle Kerntabellen).")
+
 with st.expander("Datenquellen & Stand"):
     st.write(f"Aktive Geräte (melden): **{_de(int(k.get('geraete_live') or 0))}**")
     st.write({
@@ -193,3 +198,6 @@ with st.expander("Datenquellen & Stand"):
     })
     st.caption("Die Auswertungs-Datenbank ist ein abgeleiteter Cache aus den drei Quellen "
                "(nur lesend) und wird nächtlich aktualisiert.")
+    st.divider()
+    st.caption("Aktualität je Tabelle und letzter nächtlicher Lauf:")
+    render_status_detail()
