@@ -1,19 +1,17 @@
-# Techniker-Aliase für das Service-Dashboard.
+# Techniker-Kürzel-Override (OPTIONAL) für das Service-Dashboard.
 #
-# Radix liefert nur eine pseudonyme employee_id. Hier ordnest du sie deinen
-# Technikern zu (Kürzel + optional Name), damit das Dashboard echte Kürzel statt
-# IDs zeigt. Fehlt diese Datei oder ein Eintrag, fällt das Dashboard auf die
-# employee_id zurück (DSGVO-unkritisch).
+# Seit Migration 067 kommt der zugewiesene Techniker mit KLARNAMEN direkt aus Radix
+# (employeeResponsible). Diese Datei wird nur noch gebraucht, wenn du statt des vollen
+# Namens ein kurzes Kürzel zeigen willst — Schlüssel ist die `employeeIdResponsible`
+# (die ID des VERANTWORTLICHEN Technikers, nicht des Arbeitszeit-/Lager-Loggers).
 #
-# Vorschlag: `python scripts/seed_technicians.py` schreibt einen Entwurf
-# (config/technicians.draft.yaml), indem es die Kürzel aus dem Call-Log der
-# Tickets je employee_id rät. Entwurf prüfen, korrigieren, nach
-# config/technicians.yaml kopieren, dann:
+# Die IDs siehst du im Dashboard-Tab „Techniker-Profil" (Spalte techniker_id) oder via:
+#   SELECT DISTINCT techniker_id, techniker FROM insights.vw_service_visits;
+# Nach Änderungen laden:
 #   docker exec krai-insights-app python -m insights.etl.load --technicians
 #
-# Format: employee_id -> Kürzel  ODER  employee_id -> { kuerzel, name }
+# Format: employeeIdResponsible -> Kürzel  ODER  -> { kuerzel, name }
 
 technicians:
-  "1FB0000000000Y": { kuerzel: "HAT", name: "Tobias Haas" }
-  "1FB0000000001A": "BRA"
-  # "1FB000000000DZ": { kuerzel: "MK" }
+  "1FB000000000H1": { kuerzel: "HAT", name: "Tobias Haas" }
+  # "1FB0000000001A": "XYZ"

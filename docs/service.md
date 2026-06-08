@@ -54,20 +54,22 @@ Mehrfach-Tausch berechtigt).
 
 ## Techniker-Zuordnung
 
-Radix liefert nur eine **pseudonyme `employee_id`**. Das Dashboard zeigt diese ID, bis sie in
-`config/technicians.yaml` einem Kürzel/Namen zugeordnet ist (DSGVO-konform: eigene Techniker
-dürfen benannt werden). Ablauf:
+Der **zugewiesene Techniker kommt direkt aus Radix** — die Aktivität trägt
+`employeeIdResponsible` + `employeeResponsible` (Klarname) und `team`. Das sind **eigene
+Mitarbeiter**, deren Namen laut Policy behalten werden dürfen (nur Kunden-Kontakte werden
+pseudonymisiert). Migration 067 speichert sie in `activity_notes` (`techniker_id`,
+`techniker_name`, `team_name`), befüllt vom Ticket-Crawl (`--tickets`).
 
-```powershell
-# Entwurf raten (Kürzel aus dem Call-Log „<KÜRZEL> <Datum> <Zeit>:" je employee_id, mit Konfidenz)
-docker exec krai-insights-app python scripts/seed_technicians.py     # -> config/technicians.draft.yaml
-# Entwurf PRÜFEN (niedrige Konfidenz = oft Back-Office, das Notizen schreibt), korrigieren,
-# nach config/technicians.yaml kopieren, dann laden:
-docker exec krai-insights-app python -m insights.etl.load --technicians
-```
+Wichtig: Das ist der **verantwortliche Techniker**, NICHT der Arbeitszeit-/Lager-Logger
+(`cost_events.employee_id` / `employeeId`). Letzterer ist oft das **Lager** (z. B. Kürzel
+PEM/KAI/KOS), das die gerichteten Teile ins Ticket bucht — der wäre für die Schulungs-Sicht
+falsch.
 
-Fehlt die Datei, fällt das Dashboard sauber auf die `employee_id` zurück. `config/technicians.yaml`
-und der Entwurf sind gitignored; `config/technicians.yaml.example` ist die Vorlage.
+**Override (optional):** Will man kurze Kürzel statt voller Namen, mappt man
+`employeeIdResponsible → Kürzel` in `config/technicians.yaml` (`--technicians`); das hat
+Vorrang vor dem Radix-Namen. Ohne Override zeigt das Dashboard den Radix-Klarnamen.
+(`scripts/seed_technicians.py` aus der ersten Version riet Kürzel aus dem Call-Log — seit die
+echten Namen aus Radix kommen nicht mehr nötig.)
 
 ## Grenzen / Ehrlichkeit
 

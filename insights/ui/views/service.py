@@ -134,12 +134,11 @@ with tab_shot:
 with tab_tech:
     st.markdown("**Shotgun-Quote je Techniker** — der direkte Schulungs-Hebel (ab 10 Einsätzen). "
                 "Wartungen sind separat ausgewiesen und zählen nicht als Shotgun.")
-    st.caption("Techniker erscheinen mit der pseudonymen Radix-employee_id, bis du sie in "
-               "`config/technicians.yaml` Kürzeln zuordnest. Entwurf erzeugen: "
-               "`python scripts/seed_technicians.py` (rät Kürzel aus dem Call-Log, mit Konfidenz). "
-               f"Mehr: [Doku Service]({doc('service.md', 'techniker-zuordnung')}).")
+    st.caption("Techniker = **zugewiesener Techniker aus Radix** (`employeeResponsible`), nicht der "
+               "Arbeitszeit-/Lager-Logger. Optional kann ein Kürzel in `config/technicians.yaml` "
+               f"hinterlegt werden (Override). Mehr: [Doku Service]({doc('service.md', 'techniker-zuordnung')}).")
     tech = frame(
-        "SELECT techniker, einsaetze, schnitt_teiltypen, shotgun_einsaetze, shotgun_pct, "
+        "SELECT techniker, team, einsaetze, schnitt_teiltypen, shotgun_einsaetze, shotgun_pct, "
         "wartungen, material_eur FROM insights.vw_technician_service_profile"
     )
     if not tech.empty:
@@ -149,9 +148,9 @@ with tab_tech:
             title="Shotgun-Quote je Techniker (Top 20)",
         ))
         st.dataframe(tech.rename(columns={
-            "techniker": "Techniker", "einsaetze": "Einsätze", "schnitt_teiltypen": "Ø Teiltypen",
-            "shotgun_einsaetze": "Shotgun-Einsätze", "shotgun_pct": "Shotgun %",
-            "wartungen": "Wartungen", "material_eur": "Material €",
+            "techniker": "Techniker", "team": "Team", "einsaetze": "Einsätze",
+            "schnitt_teiltypen": "Ø Teiltypen", "shotgun_einsaetze": "Shotgun-Einsätze",
+            "shotgun_pct": "Shotgun %", "wartungen": "Wartungen", "material_eur": "Material €",
         }), width="stretch", hide_index=True)
     st.caption("Lesehilfe: Eine hohe Shotgun-Quote bei vielen Einsätzen ist ein Schulungs-Kandidat — "
                "vor dem Gespräch einzelne Fälle im Tab „Shotgun-Einsätze“ prüfen (Kontext zählt).")
