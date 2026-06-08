@@ -9,9 +9,13 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from insights.core.db import insights_engine
+from insights.ui.freshness import render_status_detail
 from insights.ui.links import doc
 from insights.ui.theme import bar, render_chart, setup_page
 from sqlalchemy import text
+
+# Ampel je Bewertung der Datenqualitäts-Kennzahlen (vw_data_quality).
+DQ_AMPEL = {"gut": "🟢", "mittel": "🟡", "schwach": "🟠", "info": "⚪"}
 
 VALID_LABEL = {
     "radix_geraet": "Radix bestätigt (gleiches Gerät)",
@@ -84,10 +88,53 @@ c3.metric("Toner woanders eingebaut", f"{k['woanders']:,}".replace(",", "."))
 c4.metric("Kunden-Abweichung (Geräte)", f"{k['kunde_abw']:,}".replace(",", "."))
 
 st.divider()
-tab_ps, tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
-    ["🖨️ Print-Server / Queues", "Abrechnungs-Risiko", "Flotten-Abgleich",
+tab_dq, tab_ps, tab_risk, tab_recon, tab_vbm, tab_einbau, tab_kunde = st.tabs(
+    ["📊 Daten-Gesundheit", "🖨️ Print-Server / Queues", "Abrechnungs-Risiko", "Flotten-Abgleich",
      "Teilewechsel-Validierung", "Material-Einbau", "Kunden-Abgleich"]
 )
+
+with tab_dq:
+    st.markdown("**Daten-Gesundheit auf einen Blick** — aus dem systematischen Audit (Stand laufend). "
+                "Grün = gut, gelb = manuell prüfen, orange = quellenbedingte Schwäche, ⚪ = Kontext.")
+    dq = frame("SELECT kategorie, kennzahl, wert, bewertung, hinweis FROM insights.vw_data_quality ORDER BY sort")
+    if not dq.empty:
+        dq["Ampel"] = dq["bewertung"].map(DQ_AMPEL).fillna("⚪")
+        dq = dq.rename(columns={
+            "kategorie": "Kategorie", "kennzahl": "Kennzahl", "wert": "Wert", "hinweis": "Hinweis",
+        })[["Ampel", "Kategorie", "Kennzahl", "Wert", "Hinweis"]]
+        st.dataframe(dq, width="stretch", hide_index=True)
+    st.caption("📌 Die Garantie-Methodik wurde 2026-06-08 validiert: die Reichweite je Kartusche steckt korrekt "
+               "im Wechsel-Event (~12.700 Seiten Median). Die vielen „unbewerteten\" VBM-Events sind "
+               "Status-Mehrfachmeldungen/Erstkartuschen — kein Datenloch. "
+               f"Details: [Doku §11]({doc('datenqualitaet.md', '11-audit-2026-06-08')}).")
+
+    st.divider()
+    st.markdown("**Daten-Aktualität & letzte ETL-Läufe**")
+    render_status_detail()
+
+    with st.expander("🔁 Doppelte Seriennummern (Review-Liste)"):
+        st.caption("Seriennummer ist in der Flotten-Verwaltung nicht eindeutig (verkaufte/verschobene Geräte). "
+                   "Geschlüsselt wird auf die FleetMgmt-Geräte-ID; diese Gruppen sind zur manuellen Prüfung.")
+        dups = frame(
+            "SELECT manufacturer_serial AS seriennummer, (details->>'device_count')::int AS geraete, "
+            "reason AS grund, created_at AS erfasst FROM insights.match_review_queue "
+            "WHERE NOT resolved ORDER BY (details->>'device_count')::int DESC NULLS LAST LIMIT 200"
+        )
+        st.write(f"**{len(dups):,}**".replace(",", ".") + " offene(r) Eintrag/Einträge (max. 200)")
+        st.dataframe(dups, width="stretch", hide_index=True)
+
+    with st.expander("🔗 Live-Geräte ohne Radix-Verknüpfung (Matching-Reserve)"):
+        st.caption("Aktive Geräte, die (noch) keinem Radix-Eintrag zugeordnet sind — kleine Restmenge zum "
+                   "manuellen Zuordnen über Seriennummer oder interne ID.")
+        unm = frame(
+            "SELECT manufacturer_serial AS seriennummer, internal_id AS interne_id, "
+            "manufacturer_canonical AS hersteller, model_display AS modell, customer_name AS kunde, "
+            "customer_city AS ort FROM insights.devices_unified "
+            "WHERE radix_device_number IS NULL AND device_status = 'live' "
+            "AND NOT COALESCE(is_queue_artifact, false) ORDER BY customer_name LIMIT 200"
+        )
+        st.write(f"**{len(unm):,}**".replace(",", ".") + " live-Gerät(e) ohne Radix")
+        st.dataframe(unm, width="stretch", hide_index=True)
 
 with tab_ps:
     st.markdown("**Kunden, die über einen zentralen Windows-Print-Server überwacht werden** — dort zählt der "

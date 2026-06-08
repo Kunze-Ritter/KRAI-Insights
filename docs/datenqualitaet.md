@@ -153,3 +153,50 @@ tragen keine Zähler/Toner-Daten und keine Service-Alarme (nur „Monitoring akt
 entfernt") → für Service nichts zu holen. **Nutzen:** Cleanup (Agent bei Vertragsende
 deinstallieren) + Erklärung, woher Phantom-Geräte stammen. UI: Datenqualität-Tab
 „🖨️ Print-Server / Queues"; Agent-Route `print_server_kunden`.
+
+## 11. Audit 2026-06-08
+
+Systematische Prüfung des Ist-Zustands nach einem frischen Voll-Refresh über Radix +
+FleetMgmt (15/15 ETL-Schritte ok). **Gesamturteil: die Daten sind gut und
+rollout-tauglich.** Die wichtigsten Kennzahlen liegen laufend im Dashboard
+(Datenqualität-Tab „📊 Daten-Gesundheit", View `insights.vw_data_quality`, Migration 065)
+zusammen mit der Daten-Aktualität (`vw_table_freshness`) und dem letzten ETL-Lauf
+(`vw_etl_status`).
+
+**Stark:** OEM-Toner-Abdeckung der Live-Geräte **97,4 %**; Kundenname zu 100 % vorhanden;
+Datums-/Wert-Sanity sauber (0 Zukunftsdaten, 0 ungültige Vertragszeiträume).
+
+**Wichtigster Befund — Garantie-Methodik validiert (keine Änderung).** Auf den ersten
+Blick wirkten nur ~12 % der Tonerzyklen „bewertbar", was ein Datenloch nahelegte. Die
+Prüfung zeigt das Gegenteil: Der absolute Seitenzähler (`page_count_at_event`,
+`sum_bw`/`sum_color`) ist zu **100 %** vorhanden, lässt aber nur **179** der Lücken
+rekonstruieren. Ursache der vielen „unbewerteten" Events:
+
+- **120.779 Status-Mehrfachmeldungen** (< 7 Tage Abstand) = dieselbe Kartusche wird
+  wiederholt gemeldet, dazwischen ~0 gedruckte Seiten;
+- **24.551 Erstkartuschen** je Gerät×Farbe (kein Vorgänger → keine Basis);
+- **93 % der serial-belegten Kartuschen** erscheinen in nur **einem** Event — und genau
+  dieses Wechsel-Event trägt bereits die echte Reichweite (**~12.700 Seiten Median**).
+
+→ Die heutige Basis `pages_since_previous` **am Wechsel-Event** ist also **korrekt**; eine
+Umstellung (z. B. auf max−min des Gerätezählers) würde die Reichweiten verfälschen. Die
+„niedrige Bewertbarkeit" war eine Kennzahl-Täuschung (Status-Events im Nenner), kein
+Datenloch. Bewusst **keine** View-Änderung.
+
+**Quellenbedingte Schwäche — Material-Preisabdeckung 15,8 %.** Nur ~1/6 der
+Material-Kostenzeilen tragen einen berechneten Preis (Arbeit 0 %, da der Stundensatz
+Config-Eingabe ist, nicht aus Radix). Kosten-/Profitabilitätssichten ruhen damit auf
+dünner Basis — als Transparenz-Hinweis ausgewiesen, nicht durch uns behebbar.
+
+**Manuelle Korrektur-Kandidaten (im Tab gelistet):**
+
+- **969 Kundenabweichungen** FleetMgmt↔Radix (Toner-Fehlversand-/Abrechnungsrisiko) —
+  abzuarbeiten über den Kunden-Abgleich.
+- **787 Geräte mit doppelter Seriennummer** (überwiegend verkaufte/verschobene Geräte;
+  Serial ist in FleetMgmt nicht eindeutig). Geschlüsselt wird auf die FleetMgmt-Geräte-ID;
+  die Gruppen liegen als Review-Liste (`match_review_queue`) im Tab.
+- **70 live-Geräte ohne Radix-Verknüpfung** (Matching-Reserve). Der theoretische
+  `internal_id→Radix`-Fallback (~806 Kandidaten) bringt laut Messung nur ~30 echte
+  Treffer — deshalb als manuelle Review-Liste statt automatischer Zuordnung.
+- **897 negative Seiten-Deltas** (Counter-Reset/Geräte-Tausch) = Rauschen, in der
+  Bewertung nicht mitgezählt.
