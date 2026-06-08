@@ -731,6 +731,52 @@ def r_top_alert_codes(args: dict[str, Any]) -> AnswerCard:
     return AnswerCard(text=txt, data=df, citation=_cite("vw_top_alert_codes", sql))
 
 
+def r_symptom_part_pattern(args: dict[str, Any]) -> AnswerCard:
+    sql = (
+        "SELECT symptom, einsaetze, schnitt_teiltypen AS schnitt_teile, shotgun_einsaetze, "
+        "shotgun_pct AS shotgun_prozent, material_eur, haeufigste_teilkombi "
+        "FROM insights.vw_symptom_part_patterns WHERE symptom <> 'Wartung/Installation' "
+        "ORDER BY shotgun_pct DESC NULLS LAST"
+    )
+    df = _df(sql)
+    txt = ("Symptom → Teil-Muster: wie viele (und welche) Teile je Fehlermeldung getauscht werden. "
+           "Hohe Shotgun-Quote = bei diesem Symptom werden oft 3+ Teiltypen auf einmal getauscht "
+           "(geplante Wartung ist ausgenommen) → Schulungs-Kandidat.")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_symptom_part_patterns", sql))
+
+
+def r_shotgun_visits(args: dict[str, Any]) -> AnswerCard:
+    suche = (args.get("suche") or "").strip()
+    where = ["shotgun_verdacht"]
+    params: dict[str, Any] = {}
+    if suche:
+        where.append("(customer_name ILIKE :q OR model_display ILIKE :q OR techniker ILIKE :q OR symptom ILIKE :q)")
+        params["q"] = f"%{suche}%"
+    sql = (
+        "SELECT datum, techniker, symptom, manufacturer_canonical AS hersteller, model_display AS modell, "
+        "customer_name AS kunde, teiltypen AS anzahl_teiltypen, teiltyp_liste AS teile, material_eur "
+        f"FROM insights.vw_service_visits WHERE {' AND '.join(where)} "
+        "ORDER BY datum DESC, teiltypen DESC LIMIT 100"
+    )
+    df = _df(sql, params)
+    txt = (f"{len(df)} Einsätze mit Shotgun-Verdacht (3+ verschiedene Teiltypen bei einer Störung, "
+           "geplante Wartung ausgenommen) — auf Verdacht getauschte Teile, Schulungs-/Prüf-Kandidaten.")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_service_visits", sql))
+
+
+def r_technician_profile(args: dict[str, Any]) -> AnswerCard:
+    sql = (
+        "SELECT techniker, einsaetze, schnitt_teiltypen AS schnitt_teile, shotgun_einsaetze, "
+        "shotgun_pct AS shotgun_prozent, wartungen, material_eur "
+        "FROM insights.vw_technician_service_profile ORDER BY shotgun_pct DESC NULLS LAST LIMIT 50"
+    )
+    df = _df(sql)
+    txt = (f"Techniker-Profil ({len(df)} Techniker, ab 10 Einsätzen): Shotgun-Quote und Ø Teiltypen je "
+           "Einsatz. Hohe Quote = Schulungs-Kandidat. Techniker erscheinen als pseudonyme employee_id, "
+           "bis sie in config/technicians.yaml Kürzeln zugeordnet sind.")
+    return AnswerCard(text=txt, data=df, citation=_cite("vw_technician_service_profile", sql))
+
+
 def r_open_events(args: dict[str, Any]) -> AnswerCard:
     kunde = (args.get("kunde") or "").strip()
     min_tage = int(args.get("min_tage") or 0)
@@ -920,6 +966,22 @@ REGISTRY: list[Route] = [
           "ohne Kunde: Kunden mit den meisten Lieferadressen.",
           {"kunde": {"type": "string", "description": "Kundenname (optional)"}}, [],
           r_shipping_addresses),
+    Route("symptom_teil_muster",
+          "Service-Muster: bei welchem Symptom/Fehlermeldung werden wie viele (und welche) Ersatzteile "
+          "getauscht — und wie oft auf Verdacht zu viele auf einmal (Shotgun). Für Fragen wie 'bei welchem "
+          "Fehler werden zu viele Teile getauscht', 'Symptom-Teil-Muster', 'wo tauschen Techniker zu viel'.",
+          {}, [], r_symptom_part_pattern),
+    Route("shotgun_einsaetze",
+          "Service-Einsätze mit Shotgun-Verdacht: 3+ verschiedene Teiltypen (Trommel/Entwickler/Transfer …) "
+          "bei einer Störung auf einmal getauscht (geplante Wartung ausgenommen). Für Fragen wie 'wo wurden "
+          "zu viele Teile getauscht', 'Shotgun-Reparatur', 'auf Verdacht getauscht'.",
+          {"suche": {"type": "string", "description": "optional: Kunde, Modell, Techniker oder Symptom"}}, [],
+          r_shotgun_visits),
+    Route("techniker_teile_profil",
+          "Techniker-Profil zum Teile-Einsatz: Shotgun-Quote und Ø Teiltypen je Einsatz pro Techniker "
+          "(Schulungs-Liste). Für Fragen wie 'welcher Techniker tauscht zu viele Teile', 'Techniker-Profil "
+          "Ersatzteile', 'wer hat die höchste Shotgun-Quote'.",
+          {}, [], r_technician_profile),
 ]
 
 BY_NAME: dict[str, Route] = {r.name: r for r in REGISTRY}

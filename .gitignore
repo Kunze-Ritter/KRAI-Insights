@@ -6,6 +6,8 @@ config/customer_mapping.yaml
 config/warranty_rules.yaml
 config/contract_pricing.yaml
 config/business_rules.yaml
+config/technicians.yaml
+config/technicians.draft.yaml
 config/*.local.yaml
 
 # --- Radix token cache ---

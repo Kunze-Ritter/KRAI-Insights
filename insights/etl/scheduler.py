@@ -155,6 +155,7 @@ def daily_refresh() -> None:
         ("fleet_events", load.load_events),
         ("vbm_lifecycle", load.load_vbm_lifecycle),
         ("error_codes", load.load_error_codes),
+        ("technician_aliases", load.load_technician_aliases),
         ("part_lifetimes_oem", load.load_part_lifetimes),
         # Modell-Toner-Soll NACH vbm_lifecycle + part_lifetimes neu materialisieren, sonst
         # veraltet der OEM-Soll-Backfill (Garantie/Yield, Migration 062/063) nach jedem Nightly.
