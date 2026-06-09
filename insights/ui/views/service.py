@@ -38,21 +38,33 @@ def _click(df_display: pd.DataFrame, key: str) -> int | None:
     return rows[0] if rows else None
 
 
+def _visit_table(df: pd.DataFrame, key: str) -> str | None:
+    """Selectable visit table. `df` carries radix_activity_id (hidden, for lookup) +
+    readable radix_ticket/radix_vorgang. Returns the selected activity_id or None."""
+    disp = df.rename(columns={"radix_ticket": "Radix-Ticket", "radix_vorgang": "Radix-Vorgang"})
+    disp = disp.drop(columns=[c for c in ("radix_activity_id",) if c in disp.columns])
+    i = _click(disp, key=key)
+    return str(df.iloc[i]["radix_activity_id"]) if i is not None else None
+
+
 def ticket_detail(aid: str) -> None:
     """Volles Ticket: Metadaten, getauschte Teile (mit Preis), Problem- + Technik-Text."""
     v = frame(
         "SELECT datum, customer_name, customer_city, manufacturer_canonical, model_display, "
-        "techniker, dispo, team, symptom, material_eur, arbeit_min, problem_text, technik_text "
-        "FROM insights.vw_service_visits WHERE radix_activity_id = :a", {"a": aid},
+        "techniker, dispo, team, symptom, material_eur, arbeit_min, problem_text, technik_text, "
+        "radix_ticket, radix_vorgang, device_serial FROM insights.vw_service_visits "
+        "WHERE radix_activity_id = :a", {"a": aid},
     )
     if v.empty:
         st.info("Keine Details zu diesem Ticket.")
         return
     r = v.iloc[0]
-    st.markdown(f"#### 🎫 Ticket `{aid}` · {r['datum']}")
+    tic, vor = r["radix_ticket"] or "—", r["radix_vorgang"] or "—"
+    st.markdown(f"#### 🎫 Radix-Ticket `{tic}` · Vorgang `{vor}` · {r['datum']}")
     c1, c2, c3 = st.columns(3)
     c1.markdown(f"**Kunde:** {r['customer_name'] or '—'} ({r['customer_city'] or '—'})")
-    c1.markdown(f"**Gerät:** {r['manufacturer_canonical'] or '—'} {r['model_display'] or ''}")
+    geraet = f"{r['manufacturer_canonical'] or '—'} {r['model_display'] or ''}"
+    c1.markdown(f"**Gerät:** {geraet} · SN {r['device_serial'] or '—'}")
     c2.markdown(f"**Techniker:** {r['techniker'] or '—'}")
     c2.markdown(f"**Dispo:** {r['dispo'] or '—'} · Team {r['team'] or '—'}")
     c3.markdown(f"**Symptom:** {r['symptom']}")
@@ -110,16 +122,16 @@ def technician_detail(t: str) -> None:
         }), width="stretch", hide_index=True)
 
     ex = frame(
-        "SELECT radix_activity_id AS ticket, datum, symptom, model_display AS modell, "
+        "SELECT radix_activity_id, radix_ticket, radix_vorgang, datum, symptom, model_display AS modell, "
         "customer_name AS kunde, teiltypen, teiltyp_liste AS teile, material_eur "
         "FROM insights.vw_service_visits WHERE techniker = :t AND shotgun_verdacht "
         "ORDER BY teiltypen DESC, datum DESC LIMIT 50", {"t": t},
     )
     if not ex.empty:
         st.markdown("**Verdachts-Einsätze — Zeile anklicken für das ganze Ticket:**")
-        i = _click(ex, key=f"texsel::{t}")
-        if i is not None:
-            ticket_detail(str(ex.iloc[i]["ticket"]))
+        aid = _visit_table(ex, key=f"texsel::{t}")
+        if aid:
+            ticket_detail(aid)
 
 
 setup_page(
@@ -208,17 +220,18 @@ with tab_sym:
             title=f"Getauschte Teiltypen bei „{sym_sel}“",
         ))
     ex = frame(
-        "SELECT radix_activity_id AS ticket, datum, techniker, manufacturer_canonical AS hersteller, "
-        "model_display AS modell, customer_name AS kunde, teiltypen, teiltyp_liste AS teile, material_eur "
+        "SELECT radix_activity_id, radix_ticket, radix_vorgang, datum, techniker, "
+        "manufacturer_canonical AS hersteller, model_display AS modell, customer_name AS kunde, "
+        "teiltypen, teiltyp_liste AS teile, material_eur "
         "FROM insights.vw_service_visits WHERE symptom = :s AND shotgun_verdacht "
         "ORDER BY teiltypen DESC, material_eur DESC LIMIT 100", {"s": sym_sel},
     )
     st.markdown(f"**Verdachts-Einsätze bei „{sym_sel}“ — Zeile anklicken für das ganze Ticket:**")
     st.write(f"{_de(len(ex))} Einsätze (max. 100)")
     if not ex.empty:
-        i = _click(ex, key="sym_visits")
-        if i is not None:
-            ticket_detail(str(ex.iloc[i]["ticket"]))
+        aid = _visit_table(ex, key="sym_visits")
+        if aid:
+            ticket_detail(aid)
 
 # --- Tab: Shotgun-Einsätze (Liste, anklickbar) ------------------------------
 with tab_shot:
@@ -231,7 +244,7 @@ with tab_shot:
         clauses.append("(customer_name ILIKE :q OR model_display ILIKE :q OR techniker ILIKE :q OR symptom ILIKE :q)")
         params["q"] = f"%{such.strip()}%"
     df = frame(
-        "SELECT radix_activity_id AS ticket, datum, techniker, dispo, symptom, "
+        "SELECT radix_activity_id, radix_ticket, radix_vorgang, datum, techniker, dispo, symptom, "
         "manufacturer_canonical AS hersteller, model_display AS modell, customer_name AS kunde, "
         "teiltypen, teiltyp_liste AS teile, material_eur "
         f"FROM insights.vw_service_visits WHERE {' AND '.join(clauses)} "
@@ -239,6 +252,6 @@ with tab_shot:
     )
     st.write(f"**{_de(len(df))}** Verdachts-Einsätze (max. 500)")
     if not df.empty:
-        i = _click(df, key="shot_visits")
-        if i is not None:
-            ticket_detail(str(df.iloc[i]["ticket"]))
+        aid = _visit_table(df, key="shot_visits")
+        if aid:
+            ticket_detail(aid)

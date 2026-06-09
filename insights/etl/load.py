@@ -504,11 +504,13 @@ _UPSERT_NOTE = text(
     INSERT INTO insights.activity_notes (
         radix_activity_id, radix_ticket_id, radix_customer_id, activity_date,
         activity_type, state, problem_text, technik_text, verlauf_text,
-        techniker_id, techniker_name, dispo_id, dispo_name, team_name
+        techniker_id, techniker_name, dispo_id, dispo_name, team_name,
+        activity_code, ticket_code
     ) VALUES (
         :radix_activity_id, :radix_ticket_id, :radix_customer_id, :activity_date,
         :activity_type, :state, :problem_text, :technik_text, :verlauf_text,
-        :techniker_id, :techniker_name, :dispo_id, :dispo_name, :team_name
+        :techniker_id, :techniker_name, :dispo_id, :dispo_name, :team_name,
+        :activity_code, :ticket_code
     )
     ON CONFLICT (radix_activity_id) DO UPDATE SET
         state          = EXCLUDED.state,
@@ -520,6 +522,8 @@ _UPSERT_NOTE = text(
         dispo_id       = EXCLUDED.dispo_id,
         dispo_name     = EXCLUDED.dispo_name,
         team_name      = EXCLUDED.team_name,
+        activity_code  = EXCLUDED.activity_code,
+        ticket_code    = EXCLUDED.ticket_code,
         ingested_at    = now()
     """
 )
@@ -589,6 +593,9 @@ def crawl_ticket_notes(customer_limit: int | None = None) -> int:
             "dispo_id": a.get("employeeIdResponsible"),
             "dispo_name": a.get("employeeResponsible"),
             "team_name": a.get("team"),
+            # Lesbare Radix-Nummern zum Nachschlagen im System (Vorgang/Ticket).
+            "activity_code": a.get("code"),
+            "ticket_code": a.get("ticketCode"),
         }
     params = list(deduped.values())
     with insights_engine().begin() as conn:
