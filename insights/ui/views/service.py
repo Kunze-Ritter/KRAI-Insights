@@ -120,9 +120,9 @@ with tab_shot:
         clauses.append("(customer_name ILIKE :q OR model_display ILIKE :q OR techniker ILIKE :q)")
         params["q"] = f"%{such.strip()}%"
     df = frame(
-        "SELECT datum, techniker, symptom, manufacturer_canonical AS hersteller, model_display AS modell, "
-        "customer_name AS kunde, customer_city AS ort, teiltypen, teiltyp_liste AS teile, "
-        "teile_positionen AS positionen, material_eur, problem_text AS problem "
+        "SELECT datum, techniker, dispo, symptom, manufacturer_canonical AS hersteller, "
+        "model_display AS modell, customer_name AS kunde, customer_city AS ort, teiltypen, "
+        "teiltyp_liste AS teile, teile_positionen AS positionen, material_eur, problem_text AS problem "
         f"FROM insights.vw_service_visits WHERE {' AND '.join(clauses)} "
         "ORDER BY datum DESC, teiltypen DESC LIMIT 500",
         params,
@@ -134,9 +134,9 @@ with tab_shot:
 with tab_tech:
     st.markdown("**Shotgun-Quote je Techniker** — der direkte Schulungs-Hebel (ab 10 Einsätzen). "
                 "Wartungen sind separat ausgewiesen und zählen nicht als Shotgun.")
-    st.caption("Techniker = **zugewiesener Techniker aus Radix** (`employeeResponsible`), nicht der "
-               "Arbeitszeit-/Lager-Logger. Optional kann ein Kürzel in `config/technicians.yaml` "
-               f"hinterlegt werden (Override). Mehr: [Doku Service]({doc('service.md', 'techniker-zuordnung')}).")
+    st.caption("Techniker = **der ausführende** Mitarbeiter aus Radix (`employee`, = Arbeitszeit-Zeile), "
+               "nicht der Verantwortliche/Dispo (`employeeResponsible`, oft Office). "
+               f"Mehr: [Doku Service]({doc('service.md', 'techniker-zuordnung')}).")
     tech = frame(
         "SELECT techniker, team, einsaetze, schnitt_teiltypen, shotgun_einsaetze, shotgun_pct, "
         "wartungen, material_eur FROM insights.vw_technician_service_profile"

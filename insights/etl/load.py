@@ -504,11 +504,11 @@ _UPSERT_NOTE = text(
     INSERT INTO insights.activity_notes (
         radix_activity_id, radix_ticket_id, radix_customer_id, activity_date,
         activity_type, state, problem_text, technik_text, verlauf_text,
-        techniker_id, techniker_name, team_name
+        techniker_id, techniker_name, dispo_id, dispo_name, team_name
     ) VALUES (
         :radix_activity_id, :radix_ticket_id, :radix_customer_id, :activity_date,
         :activity_type, :state, :problem_text, :technik_text, :verlauf_text,
-        :techniker_id, :techniker_name, :team_name
+        :techniker_id, :techniker_name, :dispo_id, :dispo_name, :team_name
     )
     ON CONFLICT (radix_activity_id) DO UPDATE SET
         state          = EXCLUDED.state,
@@ -517,6 +517,8 @@ _UPSERT_NOTE = text(
         verlauf_text   = EXCLUDED.verlauf_text,
         techniker_id   = EXCLUDED.techniker_id,
         techniker_name = EXCLUDED.techniker_name,
+        dispo_id       = EXCLUDED.dispo_id,
+        dispo_name     = EXCLUDED.dispo_name,
         team_name      = EXCLUDED.team_name,
         ingested_at    = now()
     """
@@ -579,10 +581,13 @@ def crawl_ticket_notes(customer_limit: int | None = None) -> int:
             "problem_text": pseudonymize_contacts(a.get("ticketDescription")),
             "technik_text": pseudonymize_contacts(a.get("technicalDescription")),
             "verlauf_text": pseudonymize_contacts(a.get("customerDescription")),
-            # Zugewiesener Techniker (eigener Mitarbeiter — Name laut Policy erlaubt;
-            # NICHT der Arbeitszeit-Logger/Lager). Kunden-Kontakte bleiben ausgeschlossen.
-            "techniker_id": a.get("employeeIdResponsible"),
-            "techniker_name": a.get("employeeResponsible"),
+            # Techniker = der AUSFÜHRENDE (`employee`, == Arbeitszeit-Zeile), NICHT der
+            # Verantwortliche/Dispo (`employeeResponsible`, oft Office). Eigene Mitarbeiter
+            # — Name laut Policy erlaubt; Kunden-Kontakte bleiben ausgeschlossen.
+            "techniker_id": a.get("employeeId"),
+            "techniker_name": a.get("employee"),
+            "dispo_id": a.get("employeeIdResponsible"),
+            "dispo_name": a.get("employeeResponsible"),
             "team_name": a.get("team"),
         }
     params = list(deduped.values())
