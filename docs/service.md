@@ -54,16 +54,20 @@ Mehrfach-Tausch berechtigt).
 
 ## Techniker-Zuordnung
 
-Der **zugewiesene Techniker kommt direkt aus Radix** — die Aktivität trägt
-`employeeIdResponsible` + `employeeResponsible` (Klarname) und `team`. Das sind **eigene
-Mitarbeiter**, deren Namen laut Policy behalten werden dürfen (nur Kunden-Kontakte werden
-pseudonymisiert). Migration 067 speichert sie in `activity_notes` (`techniker_id`,
-`techniker_name`, `team_name`), befüllt vom Ticket-Crawl (`--tickets`).
+Der Techniker kommt **direkt aus Radix** — die Aktivität trägt zwei Personen:
 
-Wichtig: Das ist der **verantwortliche Techniker**, NICHT der Arbeitszeit-/Lager-Logger
-(`cost_events.employee_id` / `employeeId`). Letzterer ist oft das **Lager** (z. B. Kürzel
-PEM/KAI/KOS), das die gerichteten Teile ins Ticket bucht — der wäre für die Schulungs-Sicht
-falsch.
+- **`employee` (= der AUSFÜHRENDE Techniker)** — identisch mit der Arbeitszeit-Zeile
+  (`/activity/time`). Das ist der, der vor Ort gearbeitet hat. → `activity_notes.techniker_*`.
+- **`employeeResponsible` (= Verantwortlicher / Dispo)** — oft Office (disponiert/hält das
+  Ticket, war nicht vor Ort). → `activity_notes.dispo_*`, nur als Kontext.
+
+Beides sind **eigene Mitarbeiter**, deren Namen laut Policy behalten werden dürfen (nur
+Kunden-Kontakte werden pseudonymisiert). Befüllt vom Ticket-Crawl (`--tickets`),
+Team aus `team`.
+
+> Historie: Migration 067 hatte die Felder vertauscht (Dispo als Techniker). Migration 069
+> korrigiert das — Techniker = `employee`. (Beleg: bei Tickets mit „Oliver Kraska" als
+> `employeeResponsible` ist der `employee`/Worktime stets ein anderer, echter Techniker.)
 
 Hat ein Ticket **keinen** zugewiesenen Techniker (kommt vor), fällt die Sicht auf den
 Arbeitszeit-Logger zurück. Damit auch dann ein Name erscheint, pflegt der Ticket-Crawl eine
