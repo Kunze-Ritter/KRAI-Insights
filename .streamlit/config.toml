@@ -11,3 +11,13 @@ textColor = "#18181B"                 # zinc-900
 font = "sans serif"
 baseRadius = "0.75rem"                # runde Ecken (shadcn-typisch)
 borderColor = "#E4E4E7"               # zinc-200 — dezente Rahmen
+
+[browser]
+# Keine Nutzungsstatistik an Streamlit senden (interne Daten, DSGVO).
+gatherUsageStats = false
+
+[server]
+# Hinter dem Cloudflare-Tunnel laeuft genau ein Origin -> Defaults passen.
+# Falls der WebSocket beim Rollout hakt, hier enableCORS/enableXsrfProtection pruefen
+# (siehe docs/deployment.md). headless ist zusaetzlich im Dockerfile-CMD gesetzt.
+headless = true
