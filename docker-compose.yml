@@ -46,7 +46,11 @@ services:
       INSIGHTS_DB_HOST: insights-postgres
       INSIGHTS_DB_PORT: 5432
     ports:
-      - "8501:8501"
+      # Default 127.0.0.1 = nur lokal erreichbar (Zugriff laeuft ueber den CF-Tunnel,
+      # der die App ueber das Docker-Netz als http://app:8501 erreicht). Fuer direkten
+      # LAN-Zugriff APP_BIND_HOST=0.0.0.0 in .env setzen. Streamlit bleibt im Container
+      # auf 0.0.0.0 (Dockerfile) — nur dieses Host-Mapping wird eingeschraenkt.
+      - "${APP_BIND_HOST:-127.0.0.1}:8501:8501"
     depends_on:
       insights-postgres:
         condition: service_healthy
@@ -128,6 +132,24 @@ services:
     networks:
       - default
       - krai-shared
+
+  # Optional — Cloudflare Tunnel fuer den sicheren Mitarbeiter-Rollout (SSO via
+  # Cloudflare Access / Entra ID, KEIN offener Port). Siehe docs/deployment.md.
+  #   docker compose --profile tunnel up -d cloudflared
+  # Erreicht die App ueber das Docker-Netz als http://app:8501 (im CF-Dashboard als
+  # Public-Hostname-Service eintragen). Token aus dem Zero-Trust-Dashboard.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: krai-insights-cloudflared
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - app
+    networks:
+      - default
 
   # Optional — local LLM for the KI-Agent (Phase 5). Enable with:
   #   docker compose --profile agent up -d ollama
