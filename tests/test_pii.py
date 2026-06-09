@@ -38,6 +38,39 @@ def test_emails_are_pseudonymized() -> None:
     assert "@example.com" not in out
 
 
+@pytest.mark.parametrize(
+    "text,name",
+    [
+        ("Ansprechpartner: Sascha Scharf", "Scharf"),
+        ("Ansprechpartnerin: Maria Vogel", "Vogel"),
+        ("Kontaktperson: Hans Berger", "Berger"),
+        ("Kontakt - Müller-Lüdenscheidt", "Müller"),
+    ],
+)
+def test_label_based_contact_names_are_pseudonymized(text: str, name: str) -> None:
+    out = pseudonymize_contacts(text)
+    assert "[Kontakt]" in out
+    assert name not in out
+
+
+def test_company_label_is_kept() -> None:
+    # Firmenname + Ort sind laut Policy erlaubt — NICHT pseudonymisieren.
+    text = "Firmenname: Meisterdruck GmbH, Ort: Freiburg"
+    out = pseudonymize_contacts(text)
+    assert "Meisterdruck GmbH" in out
+    assert "[Kontakt]" not in out
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["E-Mail:info@kunde.de", "mail an support@firma-xy.com bitte", "a.b+x@sub.domain.co.uk"],
+)
+def test_glued_and_unusual_emails_are_caught(text: str) -> None:
+    out = pseudonymize_contacts(text)
+    assert "@" not in out
+    assert "[email]" in out
+
+
 def test_email_and_contact_together() -> None:
     out = pseudonymize_contacts("z.Hd. Frau Müller (mueller@kunde.de) wegen Toner")
     assert "[Kontakt]" in out
