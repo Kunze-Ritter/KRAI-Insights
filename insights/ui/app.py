@@ -39,6 +39,11 @@ from insights.ui.freshness import render_banner  # noqa: E402
 
 render_banner()
 
+# Angemeldeten Nutzer (Cloudflare Access) in der Sidebar zeigen — no-op lokal/ohne SSO.
+from insights.ui.identity import render_user_badge  # noqa: E402
+
+render_user_badge()
+
 # Navigation nach ARBEITSABLAEUFEN/JOBS gruppiert (nicht nach Datenquelle): so liegt
 # zusammen, was ein Nutzer fuer EINE Aufgabe braucht. Die Seiten selbst sind unveraendert,
 # nur sinnvoll unter Job-Sektionen einsortiert.
