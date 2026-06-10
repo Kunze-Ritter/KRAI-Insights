@@ -33,10 +33,8 @@ class Settings(BaseSettings):
     # --- App ---------------------------------------------------------------
     app_env: str = "dev"
     log_level: str = "INFO"
-    # Optionales Dashboard-Passwort (gemeinsames Gate vor Mitarbeiter-Rollout).
-    # Leer = offen (Dev/Docker-Netz). Gesetzt = Streamlit verlangt das Passwort.
-    # Ziel langfristig: Microsoft-SSO (Entra ID) statt geteiltem Passwort.
-    dashboard_password: str = ""
+    # Auth läuft am Rand über Cloudflare Access (SSO/Entra ID), nicht in der App —
+    # siehe docs/deployment.md. (Das frühere DASHBOARD_PASSWORD entfällt.)
 
     # --- Insights DB (own PostgreSQL — the only DB we write to) ------------
     insights_db_host: str = "localhost"

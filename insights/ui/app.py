@@ -30,10 +30,8 @@ def _env_checked() -> bool:
 
 _env_checked()
 
-# Passwort-Gate (no-op, wenn DASHBOARD_PASSWORD leer ist — offenes Dev-Setup).
-from insights.ui.auth import require_password  # noqa: E402
-
-require_password()
+# Authentifizierung läuft am Rand über Cloudflare Access (SSO/Entra ID) — siehe
+# docs/deployment.md. Kein App-Passwort-Gate mehr nötig.
 
 # Globaler Daten-Aktualitäts-Banner: zeigt sich NUR bei veralteten Tabellen oder einem
 # fehlgeschlagenen Nightly-Lauf (sonst still). Macht "stille Veraltung" sichtbar.
