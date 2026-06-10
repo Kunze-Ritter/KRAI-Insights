@@ -37,10 +37,10 @@ def kennzahlen() -> dict:
 
 setup_page(
     "💰 Geld & Chancen",
-    "Wo Geld zurueckzuholen ist und wo der Markt sich bewegt — Kostenlecks, "
+    "Wo Geld zurückzuholen ist und wo der Markt sich bewegt — Lizenz-Kostenlecks, "
     "Reklamations-Chancen und Wettbewerbs-Signale auf einen Blick.",
 )
-st.caption(f"📖 Methodik & Begruendung: [Doku Datenqualitaet]({doc('datenqualitaet.md')})")
+st.caption(f"📖 Methodik & Begründung: [Doku Datenqualität]({doc('datenqualitaet.md')})")
 
 k = kennzahlen()
 c1, c2 = st.columns(2)
@@ -61,12 +61,21 @@ st.divider()
 tab_lizenz, tab_spy = st.tabs(["💸 Lizenz-Verschwendung", "🕵️ Spionage / Fremdgeräte"])
 
 with tab_lizenz:
-    st.markdown("**Geräte, die noch CSP-lizenziert sind, aber nicht mehr aktiv sind** — "
+    st.markdown("**Geräte, die noch CSP-lizenziert sind, aber nicht mehr aktiv melden** — "
                 "Delisting-Kandidaten, die unnötig Lizenzgebühren kosten.")
-    st.caption("CSP nimmt Geräte automatisch unter Lizenz, auch abgebaute/ersetzte. „lizenziert\" = in "
-               "FleetMgmt gezählt (nicht gelöscht/deaktiviert), aber nicht mehr live. Stufe **hoch** = nie "
-               "gemeldet oder >1 Jahr still UND nicht in Radix bzw. ohne Modell (fast sicher weg). "
-               "Vor dem Delisting in CSP je Zeile den Grund prüfen. Einsparung = Anzahl x Lizenzgebühr/Gerät.")
+    st.caption(
+        "**Was ist CSP?** CSP (Microsoft Cloud Solution Provider) ist das Lizenzmodell, über das KR "
+        "Geräte beim Hersteller registriert und pro Gerät abrechnet. Das Problem: CSP übernimmt "
+        "Geräte automatisch in die Lizenz — auch wenn sie längst abgebaut oder ersetzt wurden. "
+        "KR zahlt dann Lizenzgebühr für ein Gerät, das nicht mehr existiert.  \n"
+        "**Risiko-Stufen:** "
+        "**Hoch** = Gerät hat nie gemeldet, oder ist seit über 1 Jahr still UND nicht im Service-System "
+        "(Radix) → fast sicher nicht mehr vorhanden. "
+        "**Mittel** = über 180 Tage still. "
+        "**Niedrig** = 60-180 Tage still (könnte auch nur offline sein).  \n"
+        "**Empfehlung:** Vor dem Delisting in CSP den Grund in der Spalte 'Grund' prüfen und ggf. "
+        "beim Kunden nachfragen. Einsparung = Anzahl Geraete x Lizenzgebuehr pro Geraet."
+    )
     risiko_f = st.radio("Stufe", options=["hoch", "mittel", "niedrig"], index=0, horizontal=True,
                         format_func=lambda v: {"hoch": "Hoch (fast sicher weg)", "mittel": "Mittel (>180 Tage)",
                                                "niedrig": "Niedrig (60-180 Tage)"}.get(v, v))
@@ -98,13 +107,20 @@ with tab_lizenz:
     st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_spy:
-    st.markdown("**Geräte, die über unseren Flotten-Agent (DCA) melden, aber nicht von uns serviciert sind** — "
-                "sichtbar, weil der Agent beim Kunden noch läuft.")
-    st.caption("Bleibt der DCA nach Vertragsende auf dem Kundenserver, melden sich dort weiter alle Geräte "
-               "automatisch — auch neue Konkurrenzgeräte, die der Kunde aufstellt. Signal: live (meldet jetzt) "
-               "+ nicht in Radix (kein KR-Service). „Konkurrenzmarke\" = Marke ist nicht KM/Lexmark/HP/Kyocera. "
-               "„Verlorener Kunde\" = beim Kunden keine KR-Geräte mehr → Win-Back oder Agent deinstallieren. "
-               "Identitätslose Print-Server-Warteschlangen (IP „PS…\", ohne Modell/Serial) sind ausgefiltert.")
+    st.markdown("**Geräte, die über unseren Flotten-Agent melden, aber nicht von KR serviciert werden** — "
+                "sichtbar, weil der DCA beim Kunden noch läuft.")
+    st.caption(
+        "**Was ist der DCA?** Der Device Communication Agent ist eine kleine Software auf dem "
+        "Kundennetzwerk, die alle Drucker automatisch erkennt und ihre Daten an KR meldet. "
+        "Wenn der DCA nach einem Vertragsende nicht deinstalliert wird, meldet er weiter — "
+        "auch Fremdgeräte, die der Kunde neu aufstellt. Das gibt uns ein einmaliges Markt-Signal:  \n"
+        "- **Live + nicht in Radix** = KR serviciert dieses Gerät nicht → neues Fremdgerät\n"
+        "- **Konkurrenzmarke** = Gerät ist nicht von KM / Lexmark / HP / Kyocera\n"
+        "- **Verlorener Kunde** = Beim Kunden sind keine KR-Geräte mehr → Win-Back-Chance oder "
+        "DCA-Deinstallation beantragen\n"
+        "- **Fremdgerät bei aktivem Kunden** = Der Kunde hat zusätzlich ein Fremdgerät aufgestellt  \n"
+        "Hinweis: Print-Server-Warteschlangen (ohne Seriennummer/Modell) sind bereits herausgefiltert."
+    )
     cc1, cc2 = st.columns(2)
     nur_konk = cc1.checkbox("Nur Konkurrenz-Marken", value=True)
     nur_neu = cc2.checkbox("Nur neu aufgetaucht (< 1 Jahr)", value=False)

@@ -69,6 +69,33 @@ setup_page(
 )
 st.caption(f"📖 Garantie-Logik, Fehlmeldungs-Filter & Restwert-Modell: [Doku Garantie]({doc('garantie.md')})")
 
+with st.expander("📌 Woher kommen diese Daten? Was bedeuten die Begriffe?"):
+    st.markdown(
+        "**Datenquelle:** FleetMgmt meldet automatisch jeden Toner- oder Teilewechsel mit dem "
+        "aktuellen Seitenzähler des Geräts. So weiß das System, wie viele Seiten ein Toner "
+        "tatsächlich geliefert hat.  \n"
+        "**Das Hersteller-Soll (OEM-Reichweite)** ist die vom Hersteller garantierte Seitenzahl "
+        "(z. B. 'Toner für 8.000 Seiten bei 5 % Druckdeckung'). Diese Werte kommen aus unserem "
+        "Lexmark/HP/Kyocera-Crawler oder direkt aus dem Service-System Radix.  \n\n"
+        "**Wichtige Begriffe:**\n"
+        "- *Standzeit* = Wie viele Seiten oder Tage ein Toner/Teil tatsächlich gehalten hat\n"
+        "- *Garantiefall* = Toner innerhalb von 1 Jahr UND unter 70 % der Hersteller-Seitenzahl → "
+        "Reklamation beim Hersteller möglich (Hersteller erstattet den ungenutzten Anteil)\n"
+        "- *Vorzeitiger Tausch* = Toner wurde mit hoher Restfüllung weggeworfen — kein Defekt, "
+        "aber bares Geld verschwendet (Beratungsmöglichkeit beim Kunden)\n"
+        "- *OEM-Konfidenz* = Wie zuverlässig die Hersteller-Soll-Angabe ist: **hoch** = direkt "
+        "aus Radix oder eindeutige Toner-SKU; **mittel/niedrig** = geschätzter Median, weil das "
+        "Modell viele Toner-Varianten (Starter/Standard/XL) mit unterschiedlichen Reichweiten hat\n"
+        "- *Deckungskorrektur* = Bei mehr als 5 % Druckdeckung verbraucht der Drucker mehr Toner "
+        "pro Seite → die erreichbaren Seiten sinken. Das wird herausgerechnet, damit der "
+        "Vergleich fair ist\n\n"
+        "**Was sollte ich tun?**  \n"
+        "→ Tab **Garantie-Bewertung**: Liste der Garantiefälle exportieren, Hersteller kontaktieren.  \n"
+        "→ Tab **Toner-Verschwendung**: Kunden mit hohem Wegwerf-Wert ansprechen "
+        "(Schulung oder Vertragsanpassung).  \n"
+        "→ Tab **Resttonerbehälter**: Proaktive Lieferliste für die nächsten Wochen."
+    )
+
 k = kennzahlen()
 c1, c2, c3, c4, c5, c6 = st.columns(6)
 c1.metric("OEM-Abdeckung (Live)", f"{k['cov_pct']} %",

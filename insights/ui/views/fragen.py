@@ -13,7 +13,7 @@ from insights.ui.theme import setup_page
 settings = get_settings()
 
 setup_page(
-    "💬 Fragen",
+    "💬 Assistent — Fragen stellen",
     "Stelle eine Frage in normalem Deutsch — der Assistent wählt die passende "
     "Auswertung, rechnet sie und antwortet mit Quellenangabe.",
 )
@@ -33,6 +33,13 @@ if not ollama_erreichbar():
         "Antworten sind erst möglich, sobald die Verbindung steht."
     )
 
+st.info(
+    "**Was kann der Assistent?** Fragen in normalem Deutsch stellen — z. B. nach einem "
+    "Gerät suchen, Garantiefälle abfragen, Verträge prüfen oder Fehlercodes nachschlagen. "
+    "Der Assistent greift auf dieselben Daten wie das Dashboard zu, fasst sie aber als "
+    "Text zusammen. Für komplexe Filter und Listen sind die Dashboard-Seiten besser geeignet."
+)
+
 beispiele = [
     "Zeig mir Gerät 144052",
     "Toner-Standzeit für bizhub C450i",
@@ -40,6 +47,9 @@ beispiele = [
     "Fehlercode 200.03",
     "Welche Verträge laufen bald aus?",
     "Geräte ohne Vertrag",
+    "Wie viele Geräte hat Konica Minolta in der Flotte?",
+    "Garantie-Übersicht nach Hersteller",
+    "Welche Geräte melden nichts mehr?",
 ]
 cols = st.columns(3)
 geklickt = ""

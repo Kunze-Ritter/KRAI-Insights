@@ -22,8 +22,21 @@ def frame(sql: str, params: dict | None = None) -> pd.DataFrame:
 
 setup_page(
     "💶 Kosten & Verträge",
-    "Material- und Arbeitskosten aus dem Service-System sowie Vertragslaufzeiten. "
-    "Vertrag = vertraglich gedeckt, Aufwand = berechenbar, Garantie = auf Garantie.",
+    "Material- und Arbeitskosten aus dem Service-System (Radix) sowie Vertragslaufzeiten — "
+    "welche Verträge laufen aus und welche Geräte haben gar keinen Vertrag?",
+)
+
+st.info(
+    "**Woher kommen diese Daten?** Alle Material- und Arbeitskosten kommen aus dem Service-System "
+    "**Radix** — Techniker erfassen dort nach jedem Einsatz, welche Teile eingebaut wurden (mit Preisen) "
+    "und wie viel Zeit sie benötigt haben.  \n"
+    "**Was bedeuten die Abrechnungsarten?**  \n"
+    "- **Vertrag (VER)** = Kosten sind im Servicevertrag abgedeckt — KR trägt den Aufwand, "
+    "der Kunde zahlt nichts extra. Hohe Vertrag-Kosten bei einem Kunden = schlechte Marge.  \n"
+    "- **Aufwand (AUF)** = Berechenbar — der Kunde zahlt diesen Betrag extra (außerhalb des Vertrags).  \n"
+    "- **Garantie (GAR)** = Auf Herstellergarantie — KR holt den Betrag vom Hersteller zurück.  \n"
+    "**Hinweis:** Klickpreise (Erlöse pro Seite) sind in den verfügbaren Systemen noch nicht erfasst. "
+    "Die vollständige Rentabilitätsrechnung ist in Planung."
 )
 
 tab_struktur, tab_kunde, tab_vertraege = st.tabs(

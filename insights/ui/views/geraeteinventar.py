@@ -80,7 +80,19 @@ def geraete(suche: str, status: list[str], limit: int) -> pd.DataFrame:
 
 
 setup_page("🖨️ Geräte-Inventar",
-           "Alle erfassten Drucksysteme mit Standort, Kunde, Modell und Meldestatus.")
+           "Alle erfassten Drucksysteme mit Standort, Kunde, Modell und Meldestatus — "
+           "Suche nach Seriennummer, Radix-ID, Kunde, Modell, IP oder Hostname.")
+
+st.caption(
+    "**Datenquelle:** FleetMgmt (Flottenverwaltung). Alle Geräte, die jemals von einem "
+    "KR-Kunden in FleetMgmt registriert wurden, erscheinen hier.  \n"
+    "**Status-Bedeutung:** "
+    "🟢 **Aktiv** = hat in den letzten 60 Tagen Zähler gemeldet. "
+    "🟡 **Still** = zuletzt vor mehr als 60 Tagen gemeldet (möglicherweise abgebaut oder offline). "
+    "⚫ **Nie gemeldet** = wurde eingetragen, hat aber noch nie Daten geschickt. "
+    "⚫ **Deaktiviert/Gelöscht** = administrativ inaktiv gesetzt.  \n"
+    "**Tipp:** Die Radix-ID in der Tabelle direkt in Radix eingeben, um das Ticket-System zu öffnen."
+)
 
 total, nach_status = kennzahlen()
 c1, c2, c3, c4, c5 = st.columns(5)

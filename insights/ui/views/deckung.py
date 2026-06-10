@@ -41,6 +41,28 @@ setup_page(
 st.caption(f"📖 Methodik (Klickpreis-6 %, Entwickler-Risiko): [Doku Deckung]({doc('deckung.md')}) · "
            f"[Garantie/Deckungskorrektur]({doc('garantie.md', '1-wann-ist-etwas-ein-garantiefall')})")
 
+with st.expander("📌 Was bedeutet 'Deckung'? Woher kommen die Daten?"):
+    st.markdown(
+        "**Was ist Deckung?**  \n"
+        "Deckung = der Anteil einer Seite, der mit Toner bedruckt wird, in Prozent.  \n"
+        "- Eine normale Büro-Seite (wenig Text, viel Weiß) hat ungefähr **5 % Deckung**.\n"
+        "- Eine Seite mit vielen Bildern, Grafiken oder großem Farbanteil kann 20 %, 50 % oder mehr haben.\n"
+        "- Je höher die Deckung, desto mehr Toner wird pro Seite verbraucht.\n\n"
+        "**Warum ist das fürs Geld wichtig?**  \n"
+        "Der **Klickpreis** im Servicevertrag (Betrag pro gedruckter Seite) wurde bei KR mit "
+        "**~6 % Deckung** kalkuliert. Druckt ein Kunde im Schnitt mehr als 6 %, verbraucht er "
+        "mehr Toner als berechnet — KR liefert und trägt die Kosten, bekommt aber nur den "
+        "kalkulierten Klickpreis. Das ist eine direkte Marge-Verschlechterung.  \n\n"
+        "**Woher kommen die Daten?**  \n"
+        "FleetMgmt meldet nach jedem Toner-Wechsel, wie viele Seiten gedruckt wurden und wie "
+        "viel Toner verbraucht wurde. Daraus errechnet das System die reale Deckung.  \n\n"
+        "**Was sollte ich tun?**  \n"
+        "→ Kunden über 6 % Deckung sind Kandidaten für eine **Vertragsanpassung** "
+        "(höherer Klickpreis oder Deckungsklausel im Vertrag).  \n"
+        "→ Tab **Entwickler-Risiko**: HP empfiehlt, bei Deckung über 5 % öfter die "
+        "Entwicklereinheit zu wechseln — diese Geräte haben ein erhöhtes Frühausfall-Risiko."
+    )
+
 k = kennzahlen()
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Geräte über 6 % Deckung", f"{k['geraete6']:,}".replace(",", "."),

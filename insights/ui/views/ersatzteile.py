@@ -38,6 +38,29 @@ setup_page(
 st.caption("📖 Methodik (Standzeit aus Wiedereinbau, Tage + Seiten): "
            f"[Doku Garantie]({doc('garantie.md', '6-ersatzteile-nicht-nur-toner')})")
 
+with st.expander("📌 Woher kommen diese Daten? Was bedeuten 'Frühausfälle'?"):
+    st.markdown(
+        "**Datenquelle:** Service-System Radix — Techniker erfassen nach jedem Einsatz, "
+        "welche Ersatzteile eingebaut wurden. Das System vergleicht das Einbaudatum des "
+        "neuen Teils mit dem vorherigen Einbau desselben Teils am gleichen Gerät.  \n\n"
+        "**Was ist ein 'Frühausfall'?**  \n"
+        "Wenn ein Ersatzteil innerhalb von ca. einem Jahr **erneut** getauscht werden muss, "
+        "gilt das als Frühausfall. Mögliche Ursachen:\n"
+        "- Das Teil war defekt (Herstellerfehler → Reklamation beim Hersteller)\n"
+        "- Das Teil wurde bei der Reparatur beschädigt eingebaut\n"
+        "- Ein anderes, nicht erkanntes Problem hat das Teil erneut zerstört  \n\n"
+        "**Frühausfälle bedeuten Geld zurück:** Die meisten Ersatzteile haben eine Hersteller-"
+        "Garantie. Bei Frühausfällen kann KR das Teil und ggf. die Arbeitszeit beim Hersteller "
+        "reklamieren — besonders bei serial-belegten Teilen (starker Nachweis).  \n\n"
+        "**Tab Standzeit je Modell/Teil:** Zeigt, wie lange ein bestimmtes Teil an einem "
+        "bestimmten Modell im Schnitt hält. Basis für die vorausschauende Wartungsplanung (PM): "
+        "Teile proaktiv tauschen, bevor sie ausfallen und einen Servicebesuch erzwingen.  \n\n"
+        "**Was sollte ich tun?**  \n"
+        "→ Tab **Frühausfälle**: Reklamationen beim Hersteller einleiten — Radix-ID + "
+        "Einbaudatum als Nachweis verwenden.  \n"
+        "→ Tab **Standzeit je Modell**: Teile mit kurzer Standzeit in PM-Pläne aufnehmen."
+    )
+
 k = kennzahlen()
 c1, c2, c3 = st.columns(3)
 c1.metric("Frühausfälle (≤ 1 Jahr)", f"{k['fa']:,}".replace(",", "."))

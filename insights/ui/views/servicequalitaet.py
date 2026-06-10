@@ -45,6 +45,28 @@ setup_page(
 st.caption("📖 Was die Werte bedeuten: "
            f"[Kennzahlen-Glossar]({doc('kennzahlen.md', 'service-qualität')})")
 
+with st.expander("📌 Was sind Alarme? Woher kommen die Daten?"):
+    st.markdown(
+        "**Was sind Alarme?**  \n"
+        "Drucker und Kopierer melden automatisch über das Netzwerk Statusinformationen — "
+        "z. B. Papierstau, Toner leer, Heizfehler, Sensor-Fehler. Diese Meldungen werden "
+        "von FleetMgmt gesammelt und hier ausgewertet.  \n\n"
+        "**Datenquelle:** FleetMgmt (tägliche Abfrage aller Geräte-Alarme via SNMP-Protokoll).  \n\n"
+        "**Wann ist ein Gerät 'auffällig'?**\n"
+        "- **Erhöht** = ~1 Alarm pro Tag oder mehr (viele Papierstaus, wiederkehrender Fehler)\n"
+        "- **Sensor-Spam** = ~3 Alarme pro Tag oder mehr — meist ein defekter Sensor, der "
+        "dauernd denselben Fehler meldet, ohne dass tatsächlich etwas kaputt ist  \n\n"
+        "**Wichtig:** Viele Alarme bedeuten nicht zwingend ein kaputtes Gerät. Ein einziger "
+        "defekter Sensor kann tausende Alarme erzeugen. Deshalb immer den Alarm-Code und die "
+        "Bedeutung prüfen, bevor ein Techniker losgeschickt wird.  \n\n"
+        "**Was sollte ich tun?**  \n"
+        "→ Tab **Auffällige Geräte**: Geräte mit Sensor-Spam prüfen — oft genügt ein "
+        "Techniker-Besuch zur Sensor-Kalibrierung/Reinigung, statt eines Teile-Tausches.  \n"
+        "→ Tab **Störanfällige Modelle**: Modelle mit systematisch hohem Alarm-Aufkommen "
+        "identifizieren — relevant für Neukauf-Empfehlungen und proaktiven Service.  \n"
+        "→ Tab **Offene Alarme**: Alarme, die noch nicht quittiert wurden — älteste zuerst."
+    )
+
 k = kennzahlen()
 c1, c2, c3 = st.columns(3)
 c1.metric("Auffällige Geräte", f"{k['problem']:,}".replace(",", "."))

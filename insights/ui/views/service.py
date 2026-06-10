@@ -137,10 +137,33 @@ def technician_detail(t: str) -> None:
 setup_page(
     "🧰 Service — Teile-Einsatz & Schulung",
     "Wo werden bei einem Einsatz auf Verdacht zu viele Teile getauscht? Muster finden, "
-    "um Techniker zu schulen. Geplante Wartung/Installation ist ausgenommen.",
+    "um Techniker gezielt zu schulen. Geplante Wartung/Installation ist ausgenommen.",
 )
 st.caption(f"📖 Methodik & Definitionen: [Doku Service]({doc('service.md')})  ·  "
            "💡 Tabellen-Zeilen sind anklickbar — für das volle Ticket bzw. das Techniker-Detail.")
+
+with st.expander("📌 Was ist eine 'Shotgun-Reparatur' und woher kommen die Daten?"):
+    st.markdown(
+        "**Was ist das Problem?** Bei manchen Einsätzen tauscht ein Techniker mehrere teure Teile "
+        "auf einmal (z. B. Bildtrommel + Entwicklereinheit + Transferband + Fixiereinheit), "
+        "weil er nicht sicher ist, was genau den Fehler verursacht. Das nennt sich 'Shotgun-Reparatur' "
+        "— wie mit einer Schrotflinte schießen und hoffen, dass etwas trifft. "
+        "Problem: oft war nur ein einziges Teil defekt, der Rest war unnötig und kostet KR Geld.  \n\n"
+        "**Wie wird das erkannt?** Das System zählt, wie viele **verschiedene Teiltypen** pro Einsatz "
+        "eingebaut wurden. Ab **3 verschiedenen Teiltypen** bei einer Reparatur (nicht Wartung) "
+        "gilt ein Einsatz als Verdacht.  \n\n"
+        "**Wichtig:** Geplante Wartungen (PM, Wartungskit, Reinigung) sind **ausgenommen** — "
+        "dort ist der gleichzeitige Teile-Tausch korrekt und gewollt.  \n\n"
+        "**Daten kommen aus:** Service-System Radix — eingebaute Teile mit Preisen und "
+        "Ticket-Texte mit Fehlerbeschreibung und Techniker-Notizen.  \n\n"
+        "**Was sollte ich tun?**  \n"
+        "→ Tab **Überblick**: Techniker mit auffällig vielen Shotgun-Einsätzen identifizieren.  \n"
+        "→ Tab **Techniker-Profil**: Klick auf einen Namen zeigt, bei welchen Symptomen er/sie "
+        "mehr Teile als der Teamschnitt tauscht — gute Grundlage für ein Schulungsgespräch.  \n"
+        "→ Tab **Symptom-Muster**: Welche Fehlermeldungen führen besonders oft zu Mehrfach-Tausch? "
+        "Das zeigt, wo Diagnose-Leitfäden helfen würden.  \n"
+        "→ Tab **Einsatz-Details**: Einzelne Tickets einsehen (Klick auf eine Zeile)."
+    )
 
 kpi = frame(
     "SELECT count(*) AS einsaetze, count(*) FILTER (WHERE shotgun_verdacht) AS shotgun, "

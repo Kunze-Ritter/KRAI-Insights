@@ -44,6 +44,32 @@ setup_page("📊 KRAI Insights",
 st.caption(f"📖 Wie die Zahlen entstehen und warum: [Dokumentation]({doc('README.md')}) "
            f"· [Datenquellen & Datenschutz]({doc('datenquellen.md')})")
 
+with st.expander("📖 Neu hier? Kurze Erklärung zum Dashboard"):
+    st.markdown(
+        "**KRAI Insights** zeigt täglich, wo KR Geld zurückholen kann, welche Risiken bestehen "
+        "und wo der Service verbessert werden sollte — direkt aus den Flotten- und Service-Daten.\n\n"
+        "**Datenquellen (täglich automatisch aktualisiert):**\n"
+        "- **FleetMgmt** — Software auf den Druckern beim Kunden. Meldet automatisch Zählerstände, "
+        "Toner-/Teilewechsel und Alarme. Das ist die Grundlage für fast alle Auswertungen.\n"
+        "- **Radix (Service-System)** — Unser Ticket-System. Techniker erfassen hier jeden Einsatz: "
+        "eingebaute Teile, Arbeitszeiten, Symptome und Notizen.\n"
+        "- **KRAI-Wissensdatenbank** — Hersteller-Reichweiten (OEM-Soll) für Toner/Teile und "
+        "eine Fehlercode-Bibliothek aus früheren Technikeinsätzen.\n\n"
+        "**Begriffe kurz erklärt:**\n"
+        "- *OEM-Soll / Hersteller-Soll* = Vom Hersteller garantierte Reichweite, "
+        "z. B. 'dieser Toner hält 8.000 Seiten bei 5 % Druckdeckung'\n"
+        "- *Deckung* = Wie viel einer Seite mit Toner bedruckt wird. "
+        "Eine normale Büro-Seite hat ~5 %; mehr Bilder/Grafiken = mehr Toner pro Seite\n"
+        "- *CSP* = Lizenzmodell, bei dem KR pro registriertes Gerät zahlt — auch für abgebaute Geräte\n"
+        "- *DCA (Device Communication Agent)* = Kleine Software im Kundennetzwerk, "
+        "die Druckerdaten automatisch an FleetMgmt meldet\n"
+        "- *Radix-ID* = Gerätenummer im KR Service-System — damit findet man ein Gerät in Radix\n\n"
+        "**Navigation:** Links in der Sidebar sind nach Aufgaben sortiert — "
+        "z. B. alle Geld-/Reklamations-Themen unter 💰 Geld & Chancen, "
+        "alle Service-Themen unter 🛠️ Service planen. "
+        "Jede Seite erklärt oben, was sie zeigt und was zu tun ist."
+    )
+
 k = lagebericht()
 if not k:
     st.info("Kennzahlen derzeit nicht verfügbar — bitte Datenbank-Verbindung prüfen.")

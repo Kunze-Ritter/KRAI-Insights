@@ -73,10 +73,36 @@ def kennzahlen() -> dict:
 
 setup_page(
     "🔍 Datenqualität & Abgleich",
-    "Flotten-Verwaltung und Service-System gegeneinander prüfen — für saubere Abrechnung, "
-    "korrekte Geräte-Zuordnung und weniger Toner-Fehlversand.",
+    "Flotten-Verwaltung (FleetMgmt) und Service-System (Radix) gegeneinander prüfen — "
+    "für saubere Abrechnung, korrekte Geräte-Zuordnung und weniger Toner-Fehlversand.",
 )
 st.caption(f"📖 Methodik & Begründung: [Doku Datenqualität & Abgleich]({doc('datenqualitaet.md')})")
+
+with st.expander("📌 Warum ist Datenqualität hier so wichtig?"):
+    st.markdown(
+        "KRAI Insights zieht Daten aus zwei verschiedenen Systemen, die unabhängig voneinander "
+        "gepflegt werden: **FleetMgmt** (wer hat welches Gerät) und **Radix** (wer bekommt "
+        "Service/Toner). Wenn diese Systeme nicht übereinstimmen, entstehen echte Geldprobleme:  \n\n"
+        "**Konkrete Folgen bei schlechter Datenqualität:**\n"
+        "- **Toner-Fehlversand:** Toner wird an den falschen Kunden geliefert, weil die "
+        "Kundenzuordnung in FleetMgmt und Radix voneinander abweicht → Toner kommt zurück "
+        "oder geht verloren.\n"
+        "- **Falsche Abrechnung:** Ein Gerät meldet keine Zähler mehr (still), aber der Vertrag "
+        "läuft weiter → Abrechnung basiert auf Schätzwerten statt echten Zählerständen.\n"
+        "- **Lizenzkosten ohne Nutzen:** Abgebaute Geräte bleiben in CSP registriert → "
+        "KR zahlt weiterhin Lizenz für Geräte, die es nicht mehr gibt.\n"
+        "- **Doppel-Geräte / Phantome:** Print-Server-Warteschlangen oder Duplikat-Seriennummern "
+        "verfälschen die Flottenstatistik.\n\n"
+        "**Tabs dieser Seite:**\n"
+        "- **Daten-Gesundheit** = Ampel-Übersicht über alle Qualitäts-Kennzahlen\n"
+        "- **Print-Server / Queues** = Kunden, deren Drucker über einen Server gemeldet werden "
+        "(Phantom-Geräte ohne echte Daten)\n"
+        "- **Abrechnungs-Risiko** = Geräte mit Vertrag, die keine Zähler mehr senden\n"
+        "- **Flotten-Abgleich** = Überblick aktiv/still/mit Vertrag/in Radix je Gerät\n"
+        "- **Teilewechsel-Validierung** = Wurde der Tausch im Service-System bestätigt?\n"
+        "- **Material-Einbau** = Wurde der gebuchte Toner wirklich am richtigen Gerät eingebaut?\n"
+        "- **Kunden-Abgleich** = Stimmt der Kunde in FleetMgmt mit dem in Radix überein?"
+    )
 
 k = kennzahlen()
 st.caption("💡 Lizenz-Verschwendung und Wettbewerbs-Radar („Spionage\") sind als kommerzielle "
