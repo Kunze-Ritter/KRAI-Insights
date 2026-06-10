@@ -58,6 +58,7 @@ pages = {
         st.Page("views/ersatzteile.py", title="Ersatzteile & Standzeit", icon="🔧"),
     ],
     "🛠️ Service planen": [
+        st.Page("views/sla.py", title="SLA & Reaktionszeiten", icon="📊"),
         st.Page("views/servicequalitaet.py", title="Service-Qualität", icon="🚨"),
         st.Page("views/service.py", title="Teile-Einsatz & Schulung", icon="🧰"),
     ],

@@ -145,6 +145,24 @@ class RadixDataClient:
         """Tickets raised for a device."""
         return self._unwrap(await self.get("/api/serialnumber/tickets", {"SerialnumberId": serialnumber_id}))
 
+    async def get_tickets(
+        self,
+        *,
+        customer_id: str | None = None,
+        ticket_id: str | None = None,
+        take: int = 200,
+        skip: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Fetch service tickets.
+
+        MUST be scoped by `customer_id` or `ticket_id` — an unscoped call may
+        return unexpected results.  Paginate with `take`/`skip`.
+        """
+        if not (customer_id or ticket_id):
+            raise ValueError("get_tickets requires customer_id or ticket_id")
+        params = {"CustomerId": customer_id, "TicketId": ticket_id, "Take": take, "Skip": skip}
+        return self._unwrap(await self.get("/api/ticket", params))
+
     # ----------------------------------------------------------------------
     # Activities (tickets) + cost lines
     # ----------------------------------------------------------------------

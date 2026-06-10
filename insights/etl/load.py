@@ -178,6 +178,18 @@ def _parse_date(value: Any) -> Any:
         return None
 
 
+def _parse_datetime(value: Any) -> Any:
+    """ISO datetime string -> timezone-aware datetime (UTC); pass through None."""
+    if not value:
+        return None
+    try:
+        from datetime import UTC
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+    except ValueError:
+        return None
+
+
 async def _pull_radix_devices() -> dict[str, dict[str, Any]]:
     """Bulk-pull all Radix devices (DevicesOnly), index by normalised serial."""
     auth = RadixAuthManager.from_settings(get_settings())
@@ -503,28 +515,29 @@ _UPSERT_NOTE = text(
     """
     INSERT INTO insights.activity_notes (
         radix_activity_id, radix_ticket_id, radix_customer_id, activity_date,
-        activity_type, state, problem_text, technik_text, verlauf_text,
-        techniker_id, techniker_name, dispo_id, dispo_name, team_name,
-        activity_code, ticket_code
+        activity_datetime, activity_type, state, problem_text, technik_text,
+        verlauf_text, techniker_id, techniker_name, dispo_id, dispo_name,
+        team_name, activity_code, ticket_code
     ) VALUES (
         :radix_activity_id, :radix_ticket_id, :radix_customer_id, :activity_date,
-        :activity_type, :state, :problem_text, :technik_text, :verlauf_text,
-        :techniker_id, :techniker_name, :dispo_id, :dispo_name, :team_name,
-        :activity_code, :ticket_code
+        :activity_datetime, :activity_type, :state, :problem_text, :technik_text,
+        :verlauf_text, :techniker_id, :techniker_name, :dispo_id, :dispo_name,
+        :team_name, :activity_code, :ticket_code
     )
     ON CONFLICT (radix_activity_id) DO UPDATE SET
-        state          = EXCLUDED.state,
-        problem_text   = EXCLUDED.problem_text,
-        technik_text   = EXCLUDED.technik_text,
-        verlauf_text   = EXCLUDED.verlauf_text,
-        techniker_id   = EXCLUDED.techniker_id,
-        techniker_name = EXCLUDED.techniker_name,
-        dispo_id       = EXCLUDED.dispo_id,
-        dispo_name     = EXCLUDED.dispo_name,
-        team_name      = EXCLUDED.team_name,
-        activity_code  = EXCLUDED.activity_code,
-        ticket_code    = EXCLUDED.ticket_code,
-        ingested_at    = now()
+        state             = EXCLUDED.state,
+        activity_datetime = COALESCE(EXCLUDED.activity_datetime, insights.activity_notes.activity_datetime),
+        problem_text      = EXCLUDED.problem_text,
+        technik_text      = EXCLUDED.technik_text,
+        verlauf_text      = EXCLUDED.verlauf_text,
+        techniker_id      = EXCLUDED.techniker_id,
+        techniker_name    = EXCLUDED.techniker_name,
+        dispo_id          = EXCLUDED.dispo_id,
+        dispo_name        = EXCLUDED.dispo_name,
+        team_name         = EXCLUDED.team_name,
+        activity_code     = EXCLUDED.activity_code,
+        ticket_code       = EXCLUDED.ticket_code,
+        ingested_at       = now()
     """
 )
 
@@ -580,6 +593,7 @@ def crawl_ticket_notes(customer_limit: int | None = None) -> int:
             "radix_ticket_id": a.get("ticketId"),
             "radix_customer_id": cid,
             "activity_date": _parse_date(a.get("date")),
+            "activity_datetime": _parse_datetime(a.get("date")),
             "activity_type": a.get("activityType") or a.get("activityTypeType"),
             "state": a.get("stateDescription") or a.get("state"),
             "problem_text": pseudonymize_contacts(a.get("ticketDescription")),
@@ -606,6 +620,106 @@ def crawl_ticket_notes(customer_limit: int | None = None) -> int:
             conn.execute(_UPSERT_EMPLOYEE, batch)
     logger.info("activity_notes loaded: %d (contacts pseudonymised); radix_employees: %d names",
                 len(params), len(employees))
+    return len(params)
+
+
+# ---------------------------------------------------------------------------
+# radix_tickets crawl (SLA-Dashboard)
+# ---------------------------------------------------------------------------
+
+_UPSERT_TICKET = text(
+    """
+    INSERT INTO insights.radix_tickets (
+        ticket_id, ticket_code, maintenance_type, priority_type,
+        created_at, customer_id, customer_name, state, state_code,
+        device_id, description
+    ) VALUES (
+        :ticket_id, :ticket_code, :maintenance_type, :priority_type,
+        :created_at, :customer_id, :customer_name, :state, :state_code,
+        :device_id, :description
+    )
+    ON CONFLICT (ticket_id) DO UPDATE SET
+        state          = EXCLUDED.state,
+        state_code     = EXCLUDED.state_code,
+        maintenance_type = COALESCE(EXCLUDED.maintenance_type, insights.radix_tickets.maintenance_type),
+        priority_type  = COALESCE(EXCLUDED.priority_type, insights.radix_tickets.priority_type),
+        ingested_at    = now()
+    """
+)
+
+
+async def _pull_radix_tickets(customer_limit: int | None) -> list[dict[str, Any]]:
+    """Crawl tickets per customer (bounded concurrency)."""
+    auth = RadixAuthManager.from_settings(get_settings())
+    sem = asyncio.Semaphore(10)
+    rows: list[dict[str, Any]] = []
+    async with RadixDataClient(auth) as client:
+        customers = await client.get_customers(take=10000)
+        if customer_limit:
+            customers = customers[:customer_limit]
+
+        async def per_customer(cust: dict[str, Any]) -> None:
+            async with sem:
+                skip = 0
+                while True:
+                    try:
+                        batch = await client.get_tickets(customer_id=cust["id"], take=200, skip=skip)
+                    except Exception:
+                        break
+                    if not batch:
+                        break
+                    rows.extend(batch)
+                    if len(batch) < 200:
+                        break
+                    skip += len(batch)
+
+        await asyncio.gather(*(per_customer(c) for c in customers))
+    return rows
+
+
+def crawl_radix_tickets(customer_limit: int | None = None) -> int:
+    """Crawl Radix ticket headers into radix_tickets (SLA analytics).
+
+    Stores ticket creation time (documentDate), maintenance type (Störung/Wartung/...),
+    priority type, state and customer.  Ticket description is pseudonymised.
+    """
+    raw = asyncio.run(_pull_radix_tickets(customer_limit))
+    # device_id lookup: serial -> device_id
+    with insights_engine().connect() as conn:
+        serial_map: dict[str, str] = {
+            str(r[0]).upper(): str(r[1])
+            for r in conn.execute(
+                text(
+                    "SELECT manufacturer_serial, id FROM insights.devices_unified "
+                    "WHERE manufacturer_serial IS NOT NULL"
+                )
+            ).all()
+        }
+    deduped: dict[str, dict[str, Any]] = {}
+    for t in raw:
+        tid = t.get("id")
+        if not tid:
+            continue
+        serial = t.get("serialnumber") or t.get("serialnumberManufacturerNumber")
+        device_id = serial_map.get(str(serial).upper()) if serial else None
+        deduped[tid] = {
+            "ticket_id": tid,
+            "ticket_code": t.get("code"),
+            "maintenance_type": t.get("maintenanceType"),
+            "priority_type": t.get("priorityType"),
+            "created_at": _parse_datetime(t.get("documentDate")),
+            "customer_id": t.get("customerId"),
+            "customer_name": t.get("customer"),
+            "state": t.get("state"),
+            "state_code": t.get("stateCode"),
+            "device_id": device_id,
+            "description": pseudonymize_contacts(t.get("description")),
+        }
+    params = list(deduped.values())
+    with insights_engine().begin() as conn:
+        for batch in _batched(params, _BATCH):
+            conn.execute(_UPSERT_TICKET, batch)
+    logger.info("radix_tickets loaded: %d", len(params))
     return len(params)
 
 
@@ -1142,6 +1256,10 @@ if __name__ == "__main__":
     parser.add_argument("--cost-limit", type=int, default=None, help="limit cost crawl to N customers")
     parser.add_argument("--tickets", action="store_true", help="crawl Radix activity diagnostic text (pseudonymised)")
     parser.add_argument("--ticket-limit", type=int, default=None, help="limit ticket-notes crawl to N customers")
+    parser.add_argument("--radix-tickets", dest="radix_tickets", action="store_true",
+                        help="crawl Radix ticket headers into radix_tickets (SLA dashboard)")
+    parser.add_argument("--radix-ticket-limit", type=int, default=None, dest="radix_ticket_limit",
+                        help="limit radix_tickets crawl to N customers")
     parser.add_argument("--snmp", action="store_true", help="snapshot-load SNMP predictions")
     parser.add_argument("--customers", action="store_true", help="load Radix customer master (PII-safe)")
     parser.add_argument("--shipping", action="store_true", help="load Radix delivery addresses per customer")
@@ -1156,7 +1274,8 @@ if __name__ == "__main__":
     only_flags = (args.radix or args.vbm or args.models or args.errorcodes
                   or args.contracts or args.costs or args.snmp or args.events
                   or args.customers or args.shipping or args.counters or args.tickets
-                  or args.partlifetimes or args.vbm_crawler or args.technicians)
+                  or args.partlifetimes or args.vbm_crawler or args.technicians
+                  or args.radix_tickets)
     if args.all or not only_flags:
         n = load_fleetmgmt_devices()
         logger.info("FleetMgmt device load complete: %d devices processed.", n)
@@ -1208,6 +1327,9 @@ if __name__ == "__main__":
     if args.tickets:
         tn = crawl_ticket_notes(customer_limit=args.ticket_limit)
         logger.info("Ticket notes loaded: %d", tn)
+    if args.radix_tickets:
+        rt = crawl_radix_tickets(customer_limit=args.radix_ticket_limit)
+        logger.info("Radix tickets loaded: %d", rt)
     if args.all or args.technicians:
         ta = load_technician_aliases()
         logger.info("Technician aliases loaded: %d", ta)
