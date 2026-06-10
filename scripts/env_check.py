@@ -55,9 +55,7 @@ def collect_problems() -> list[str]:
             "_CLIENT_CODE / _LICENSE_ID) — Radix-Crawls werden scheitern."
         )
 
-    # Dashboard offen im Prod-Betrieb.
-    if is_prod and not s.dashboard_password:
-        problems.append("DASHBOARD_PASSWORD ist leer, obwohl APP_ENV nicht dev — Dashboard ist offen.")
+    # (Auth läuft über Cloudflare Access, nicht über ein App-Passwort.)
 
     # LLM-Provider plausibel?
     if s.llm_provider.lower() == "openrouter" and not s.openrouter_api_key:
