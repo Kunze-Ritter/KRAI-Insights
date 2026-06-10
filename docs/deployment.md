@@ -53,7 +53,23 @@ docker logs krai-insights-cloudflared    # sollte "Registered tunnel connection"
 
 Die App ist jetzt unter der gewählten Subdomain erreichbar — aber noch ohne Login-Schutz.
 
-## Schritt 4 — SSO erzwingen (Cloudflare Access + Entra ID)
+## Schritt 4 — SSO erzwingen (Cloudflare Access)
+
+> **Empfohlen (UI-unabhängig):** Die Zero-Trust-UI wird laufend umgebaut; die
+> **Access-Application + Policy** lassen sich robust **per API** anlegen —
+> `scripts/cf_access_setup.py`. Das hat sich live bewährt (die UI-Schritte führten
+> versehentlich zu *gar keiner* Access-App, sodass die Domain offen war).
+>
+> ```powershell
+> # .env: CF_API_TOKEN ("Access: Apps and Policies: Edit") + CF_ACCOUNT_ID
+> python scripts/cf_access_setup.py --check                                   # read-only Status
+> python scripts/cf_access_setup.py --domain insights.kunze-ritter.com `
+>     --allow-domain kunze-ritter.de                                          # App + Allow-Policy
+> # Gegentest: curl -sI https://insights.kunze-ritter.com  -> 302 zu cloudflareaccess.com
+> ```
+> Idempotent; `--allow-domain`/`--allow-email` sind mehrfach möglich.
+
+### Login-Methode (Entra ID) — optional zusätzlich
 
 1. **Zero Trust → Settings → Authentication → Login methods → Add → Azure AD**
    (Entra ID): App-Registrierung im Azure-Portal anlegen (Client-ID/Secret/Tenant),
